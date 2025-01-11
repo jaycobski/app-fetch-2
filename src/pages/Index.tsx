@@ -57,30 +57,15 @@ const Index = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("No session found");
 
-        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-summary`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'llama-3.1-sonar-small-128k-online',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a helpful assistant that creates concise summaries of content. Keep summaries under 3 sentences.'
-              },
-              {
-                role: 'user',
-                content: `Please summarize this content: ${post.content}`
-              }
-            ],
-            temperature: 0.2,
-            top_p: 0.9,
-            max_tokens: 1000,
-            return_images: false,
-            return_related_questions: false,
-            frequency_penalty: 1
+            postId,
+            content: post.content
           }),
         });
 
@@ -89,19 +74,7 @@ const Index = () => {
         }
 
         const result = await response.json();
-        const summary = result.choices[0].message.content;
-
-        const { error: summaryError } = await supabase
-          .from('summaries')
-          .insert({
-            user_id: session.user.id,
-            post_id: postId,
-            content: summary,
-            status: 'completed'
-          });
-
-        if (summaryError) throw summaryError;
-
+        
         toast.success("AI overview generated successfully!", { id: toastId });
       } catch (err) {
         console.error('Error generating AI overview:', err);
