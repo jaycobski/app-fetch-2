@@ -16,6 +16,29 @@ serve(async (req) => {
     // Log request details
     console.log('Request headers:', Object.fromEntries(req.headers.entries()));
     
+    // Create Supabase client to get user session
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Get the JWT from the Authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing Authorization header');
+    }
+
+    // Get the user from the JWT
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt);
+    
+    if (userError || !user) {
+      console.error('Error getting user:', userError);
+      throw new Error('Unauthorized');
+    }
+
+    console.log('Authenticated user:', user.id);
+    
     // Parse request body
     let body;
     try {
@@ -94,19 +117,14 @@ serve(async (req) => {
 
     const summary = result.choices[0].message.content;
 
-    // Create Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Store the summary
+    // Store the summary with the user_id
     const { error: summaryError } = await supabaseClient
       .from('summaries')
       .insert({
         post_id: postId,
         content: summary,
-        status: 'completed'
+        status: 'completed',
+        user_id: user.id  // Add the user_id here
       });
 
     if (summaryError) {
