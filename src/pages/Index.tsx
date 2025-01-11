@@ -7,15 +7,23 @@ const Index = () => {
   const { data: posts, isLoading, error } = useQuery({
     queryKey: ["fetched-posts"],
     queryFn: async () => {
+      console.log("Fetching posts...");
       const { data, error } = await supabase
         .from("fetched_posts")
         .select("*")
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      console.log("Fetch response:", { data, error });
+      
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
       return data;
     },
   });
+
+  console.log("Component state:", { posts, isLoading, error });
 
   if (isLoading) {
     return (
