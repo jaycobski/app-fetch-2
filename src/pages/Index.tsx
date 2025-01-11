@@ -5,6 +5,8 @@ import { FileText } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -46,6 +48,14 @@ const Index = () => {
       return data;
     },
   });
+
+  const handleGenerateAI = async (postId: string, enabled: boolean) => {
+    if (enabled) {
+      toast.info("AI overview generation started...");
+      // TODO: Implement AI generation logic
+      console.log("Generating AI overview for post:", postId);
+    }
+  };
 
   console.log("Component state:", { posts, isLoading, error });
 
@@ -94,7 +104,7 @@ const Index = () => {
                   {post.author && <span>By: {post.author}</span>}
                   {post.subreddit && <span>r/{post.subreddit}</span>}
                 </div>
-                <div className="pt-2">
+                <div className="flex items-center justify-between pt-2">
                   <a
                     href={post.url}
                     target="_blank"
@@ -103,6 +113,12 @@ const Index = () => {
                   >
                     View Original
                   </a>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Generate AI Overview</span>
+                    <Switch
+                      onCheckedChange={(checked) => handleGenerateAI(post.id, checked)}
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
