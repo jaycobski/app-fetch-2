@@ -51,16 +51,68 @@ const Index = () => {
 
   const handleGenerateAI = async (postId: string, enabled: boolean) => {
     if (enabled) {
-      toast.info("AI overview generation started...");
-      // TODO: Implement AI generation logic
-      console.log("Generating AI overview for post:", postId);
+      const toastId = toast.loading("Generating AI overview...");
+      try {
+        // Find the post content
+        const post = posts?.find(p => p.id === postId);
+        if (!post) throw new Error("Post not found");
+
+        // Call Perplexity API via Supabase Edge Function
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("No session found");
+
+        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-sonar-small-128k-online',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a helpful assistant that creates concise summaries of content. Keep summaries under 3 sentences.'
+              },
+              {
+                role: 'user',
+                content: `Please summarize this content: ${post.content}`
+              }
+            ],
+            temperature: 0.2,
+            top_p: 0.9,
+            max_tokens: 1000,
+            return_images: false,
+            return_related_questions: false,
+            frequency_penalty: 1
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate summary');
+        }
+
+        const result = await response.json();
+        const summary = result.choices[0].message.content;
+
+        // Store the summary in Supabase
+        const { error: summaryError } = await supabase
+          .from('summaries')
+          .insert({
+            user_id: session.user.id,
+            post_id: postId,
+            content: summary,
+            status: 'completed'
+          });
+
+        if (summaryError) throw summaryError;
+
+        toast.success("AI overview generated successfully!", { id: toastId });
+      } catch (err) {
+        console.error('Error generating AI overview:', err);
+        toast.error("Failed to generate AI overview", { id: toastId });
+      }
     }
-  };
-
-  console.log("Component state:", { posts, isLoading, error });
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
   };
 
   if (isLoading) {
