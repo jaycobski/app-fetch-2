@@ -24,7 +24,7 @@ const PostCard = ({ post, onGenerateAI }: PostCardProps) => {
         <CardTitle className="text-lg line-clamp-1">{post.title || "Untitled Post"}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
+        <div className="space-y-4">
           {post.content && (
             <p className="text-sm text-muted-foreground line-clamp-3">
               {post.content}
@@ -34,6 +34,14 @@ const PostCard = ({ post, onGenerateAI }: PostCardProps) => {
             {post.author && <span>By: {post.author}</span>}
             {post.subreddit && <span>r/{post.subreddit}</span>}
           </div>
+          
+          {/* Space for AI Summary */}
+          <div className="min-h-[60px] rounded-md bg-accent/50 p-3">
+            <p className="text-sm text-muted-foreground italic">
+              AI summary will appear here...
+            </p>
+          </div>
+
           <div className="flex items-center justify-between pt-2">
             <a
               href={post.url}
