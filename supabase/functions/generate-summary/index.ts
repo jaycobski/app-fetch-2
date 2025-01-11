@@ -7,21 +7,38 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { postId, content } = await req.json()
-    console.log('Received request:', { postId, content })
-    
+    // Parse request body
+    let body;
+    try {
+      body = await req.json()
+      console.log('Request body:', body)
+    } catch (e) {
+      console.error('Error parsing request body:', e)
+      throw new Error('Invalid request body')
+    }
+
+    const { postId, content } = body
+    if (!postId || !content) {
+      throw new Error('Missing required fields: postId and content are required')
+    }
+
+    // Validate authorization
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
+      console.error('No authorization header provided')
       throw new Error('No authorization header')
     }
 
+    // Get API key
     const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
     if (!apiKey) {
+      console.error('PERPLEXITY_API_KEY is not configured')
       throw new Error('PERPLEXITY_API_KEY is not configured')
     }
 
@@ -55,7 +72,11 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Perplexity API error:', errorText)
+      console.error('Perplexity API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      })
       throw new Error(`Perplexity API error: ${response.status} ${errorText}`)
     }
 
@@ -94,7 +115,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Edge function error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.toString()
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
