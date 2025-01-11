@@ -57,11 +57,17 @@ const Index = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("No session found");
 
-        // Use supabase.functions.invoke instead of fetch
+        // Get the access token from the session
+        const accessToken = session.access_token;
+        
+        // Use supabase.functions.invoke with the access token
         const { data, error } = await supabase.functions.invoke('generate-summary', {
           body: {
             postId,
             content: post.content
+          },
+          headers: {
+            Authorization: `Bearer ${accessToken}`
           }
         });
 
