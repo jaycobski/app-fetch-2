@@ -13,20 +13,23 @@ serve(async (req) => {
 
   try {
     const { postId, content } = await req.json()
-    const authHeader = req.headers.get('Authorization')
+    console.log('Received request:', { postId, content })
     
+    const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      throw new Error('No authorization header')
     }
 
-    // Call Perplexity API
+    const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+    if (!apiKey) {
+      throw new Error('PERPLEXITY_API_KEY is not configured')
+    }
+
+    console.log('Making request to Perplexity API...')
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('PERPLEXITY_API_KEY')}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -51,10 +54,14 @@ serve(async (req) => {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to generate summary')
+      const errorText = await response.text()
+      console.error('Perplexity API error:', errorText)
+      throw new Error(`Perplexity API error: ${response.status} ${errorText}`)
     }
 
     const result = await response.json()
+    console.log('Perplexity API response:', result)
+    
     const summary = result.choices[0].message.content
 
     // Create Supabase client
@@ -72,7 +79,10 @@ serve(async (req) => {
         status: 'completed'
       })
 
-    if (summaryError) throw summaryError
+    if (summaryError) {
+      console.error('Error storing summary:', summaryError)
+      throw summaryError
+    }
 
     return new Response(
       JSON.stringify({ summary }),
@@ -82,6 +92,7 @@ serve(async (req) => {
       },
     )
   } catch (error) {
+    console.error('Edge function error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
