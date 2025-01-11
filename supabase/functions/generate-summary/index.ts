@@ -13,36 +13,37 @@ serve(async (req) => {
   }
 
   try {
+    // Log request details
+    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+    
     // Parse request body
     let body;
     try {
-      body = await req.json()
-      console.log('Request body:', body)
+      const text = await req.text();
+      console.log('Raw request body:', text);
+      body = JSON.parse(text);
+      console.log('Parsed request body:', body);
     } catch (e) {
-      console.error('Error parsing request body:', e)
-      throw new Error('Invalid request body')
+      console.error('Error parsing request body:', e);
+      throw new Error(`Invalid request body: ${e.message}`);
     }
 
-    const { postId, content } = body
+    const { postId, content } = body;
     if (!postId || !content) {
-      throw new Error('Missing required fields: postId and content are required')
+      console.error('Missing required fields:', { postId, content });
+      throw new Error('Missing required fields: postId and content are required');
     }
 
-    // Validate authorization
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      console.error('No authorization header provided')
-      throw new Error('No authorization header')
-    }
-
-    // Get API key
-    const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+    // Get API key and validate authorization
+    const apiKey = Deno.env.get('PERPLEXITY_API_KEY');
     if (!apiKey) {
-      console.error('PERPLEXITY_API_KEY is not configured')
-      throw new Error('PERPLEXITY_API_KEY is not configured')
+      console.error('PERPLEXITY_API_KEY is not configured');
+      throw new Error('Server configuration error: API key not found');
     }
 
-    console.log('Making request to Perplexity API...')
+    // Log that we're about to make the Perplexity API request
+    console.log('Making request to Perplexity API with content length:', content.length);
+
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -68,28 +69,36 @@ serve(async (req) => {
         return_related_questions: false,
         frequency_penalty: 1
       }),
-    })
+    });
+
+    // Log the Perplexity API response status
+    console.log('Perplexity API response status:', response.status);
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorText = await response.text();
       console.error('Perplexity API error response:', {
         status: response.status,
         statusText: response.statusText,
         body: errorText
-      })
-      throw new Error(`Perplexity API error: ${response.status} ${errorText}`)
+      });
+      throw new Error(`Perplexity API error: ${response.status} ${errorText}`);
     }
 
-    const result = await response.json()
-    console.log('Perplexity API response:', result)
+    const result = await response.json();
+    console.log('Perplexity API response:', result);
     
-    const summary = result.choices[0].message.content
+    if (!result.choices?.[0]?.message?.content) {
+      console.error('Invalid response format from Perplexity:', result);
+      throw new Error('Invalid response format from Perplexity API');
+    }
+
+    const summary = result.choices[0].message.content;
 
     // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
     // Store the summary
     const { error: summaryError } = await supabaseClient
@@ -98,11 +107,11 @@ serve(async (req) => {
         post_id: postId,
         content: summary,
         status: 'completed'
-      })
+      });
 
     if (summaryError) {
-      console.error('Error storing summary:', summaryError)
-      throw summaryError
+      console.error('Error storing summary:', summaryError);
+      throw summaryError;
     }
 
     return new Response(
@@ -111,18 +120,24 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
-    )
+    );
   } catch (error) {
-    console.error('Edge function error:', error)
+    console.error('Edge function error:', {
+      message: error.message,
+      stack: error.stack,
+      error
+    });
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        details: error.toString()
+        details: error.toString(),
+        stack: error.stack
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       },
-    )
+    );
   }
-})
+});
