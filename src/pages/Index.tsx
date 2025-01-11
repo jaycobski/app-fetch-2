@@ -2,8 +2,32 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText } from "lucide-react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/auth");
+      }
+    };
+    
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate("/auth");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   const { data: posts, isLoading, error } = useQuery({
     queryKey: ["fetched-posts"],
     queryFn: async () => {
@@ -25,6 +49,10 @@ const Index = () => {
 
   console.log("Component state:", { posts, isLoading, error });
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -43,7 +71,11 @@ const Index = () => {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold mb-8">Fetched Posts</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Fetched Posts</h1>
+        <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {posts?.map((post) => (
           <Card key={post.id} className="hover:shadow-lg transition-shadow">
