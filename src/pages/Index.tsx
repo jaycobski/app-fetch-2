@@ -57,28 +57,28 @@ const Index = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("No session found");
 
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-summary`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        // Use supabase.functions.invoke instead of fetch
+        const { data, error } = await supabase.functions.invoke('generate-summary', {
+          body: {
             postId,
             content: post.content
-          }),
+          }
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to generate summary');
+        console.log('Edge function response:', { data, error });
+
+        if (error) {
+          throw new Error(error.message || 'Failed to generate summary');
         }
 
-        const result = await response.json();
+        if (!data) {
+          throw new Error('No data received from summary generation');
+        }
         
         toast.success("AI overview generated successfully!", { id: toastId });
       } catch (err) {
         console.error('Error generating AI overview:', err);
-        toast.error("Failed to generate AI overview", { id: toastId });
+        toast.error(`Failed to generate AI overview: ${err.message}`, { id: toastId });
       }
     }
   };

@@ -1,1 +1,4 @@
 project_id = "umugzdepvpezfmnjowcn"
+
+[functions.generate-summary]
+verify_jwt = true
