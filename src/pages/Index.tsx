@@ -51,23 +51,28 @@ const Index = () => {
     if (enabled) {
       const toastId = toast.loading("Generating AI overview...");
       try {
+        // Get the current session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error("No active session found");
+        }
+
         const post = posts?.find(p => p.id === postId);
         if (!post) throw new Error("Post not found");
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("No session found");
+        console.log("Invoking edge function with session token:", {
+          postId,
+          contentLength: post.content?.length || 0,
+        });
 
-        // Get the access token from the session
-        const accessToken = session.access_token;
-        
-        // Use supabase.functions.invoke with the access token
+        // Call the edge function with the access token
         const { data, error } = await supabase.functions.invoke('generate-summary', {
           body: {
             postId,
             content: post.content
           },
           headers: {
-            Authorization: `Bearer ${accessToken}`
+            Authorization: `Bearer ${session.access_token}`
           }
         });
 
