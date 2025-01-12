@@ -117,14 +117,14 @@ serve(async (req) => {
 
     const summary = result.choices[0].message.content;
 
-    // Store the summary with the user_id
+    // Store the summary with the user_id, using the correct column name 'summary_content'
     const { error: summaryError } = await supabaseClient
       .from('summaries')
       .insert({
         post_id: postId,
-        content: summary,
+        summary_content: summary,  // Changed from 'content' to 'summary_content'
         status: 'completed',
-        user_id: user.id  // Add the user_id here
+        user_id: user.id
       });
 
     if (summaryError) {
