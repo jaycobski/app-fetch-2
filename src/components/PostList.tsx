@@ -1,5 +1,11 @@
 import PostCard from "./PostCard";
 
+interface Summary {
+  summary_content: string | null;
+  status: string;
+  error_message: string | null;
+}
+
 interface Post {
   id: string;
   title: string;
@@ -7,6 +13,7 @@ interface Post {
   author?: string;
   subreddit?: string;
   url: string;
+  summaries?: Summary[];
 }
 
 interface PostListProps {

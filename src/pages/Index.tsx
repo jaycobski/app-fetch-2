@@ -32,18 +32,25 @@ const Index = () => {
     queryKey: ["fetched-posts"],
     queryFn: async () => {
       console.log("Fetching posts...");
-      const { data, error } = await supabase
+      const { data: postsData, error: postsError } = await supabase
         .from("fetched_posts")
-        .select("*")
+        .select(`
+          *,
+          summaries (
+            summary_content,
+            status,
+            error_message
+          )
+        `)
         .order("created_at", { ascending: false });
       
-      console.log("Fetch response:", { data, error });
+      console.log("Fetch response:", { postsData, postsError });
       
-      if (error) {
-        console.error("Supabase error:", error);
-        throw error;
+      if (postsError) {
+        console.error("Supabase error:", postsError);
+        throw postsError;
       }
-      return data;
+      return postsData;
     },
   });
 
@@ -51,7 +58,6 @@ const Index = () => {
     if (enabled) {
       const toastId = toast.loading("Generating AI overview...");
       try {
-        // Get the current session
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
           throw new Error("No active session found");
@@ -65,7 +71,6 @@ const Index = () => {
           contentLength: post.content?.length || 0,
         });
 
-        // Call the edge function with the access token
         const { data, error } = await supabase.functions.invoke('generate-summary', {
           body: {
             postId,
