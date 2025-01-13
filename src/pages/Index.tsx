@@ -1,38 +1,86 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { useSessionContext } from "@supabase/auth-helpers-react";
+import { supabase } from "@/integrations/supabase/client";
 import PostList from "@/components/PostList";
+import DigestList from "@/components/DigestList";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollText, List } from "lucide-react";
+
+interface Summary {
+  summary_content: string | null;
+  status: string;
+  error_message: string | null;
+}
+
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  author?: string;
+  subreddit?: string;
+  url: string;
+  summaries?: Summary[];
+}
 
 const Index = () => {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const { session, isLoading } = useSessionContext();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/auth");
+    if (!isLoading && !session) {
+      navigate("/auth");
+    }
+  }, [session, isLoading, navigate]);
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      console.log("Fetching posts...");
+      try {
+        const { data: postsData, error: postsError } = await supabase
+          .from("fetched_posts")
+          .select(`
+            *,
+            summaries (
+              summary_content,
+              status,
+              error_message
+            )
+          `);
+
+        console.log("Fetch response:", { postsData, postsError });
+
+        if (postsError) {
+          throw postsError;
+        }
+
+        setPosts(postsData || []);
+      } catch (error) {
+        console.error("Error fetching posts:", error);
       }
     };
-    
-    checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/auth");
-      }
-    });
+    if (session) {
+      fetchPosts();
+    }
+  }, [session]);
 
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+  const handleGenerateAI = async (postId: string, enabled: boolean) => {
+    if (!enabled) return;
 
-  const { data: posts, isLoading, error } = useQuery({
-    queryKey: ["fetched-posts"],
-    queryFn: async () => {
-      console.log("Fetching posts...");
-      const { data: postsData, error: postsError } = await supabase
+    try {
+      const post = posts.find((p) => p.id === postId);
+      if (!post) return;
+
+      const { error } = await supabase.functions.invoke("generate-summary", {
+        body: { postId, contentLength: post.content.length },
+      });
+
+      if (error) throw error;
+
+      // Refetch posts to get updated summaries
+      const { data: updatedPost, error: fetchError } = await supabase
         .from("fetched_posts")
         .select(`
           *,
@@ -42,91 +90,43 @@ const Index = () => {
             error_message
           )
         `)
-        .order("created_at", { ascending: false });
-      
-      console.log("Fetch response:", { postsData, postsError });
-      
-      if (postsError) {
-        console.error("Supabase error:", postsError);
-        throw postsError;
-      }
-      return postsData;
-    },
-  });
+        .eq("id", postId)
+        .single();
 
-  const handleGenerateAI = async (postId: string, enabled: boolean) => {
-    if (enabled) {
-      const toastId = toast.loading("Generating AI overview...");
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          throw new Error("No active session found");
-        }
+      if (fetchError) throw fetchError;
 
-        const post = posts?.find(p => p.id === postId);
-        if (!post) throw new Error("Post not found");
-
-        console.log("Invoking edge function with session token:", {
-          postId,
-          contentLength: post.content?.length || 0,
-        });
-
-        const { data, error } = await supabase.functions.invoke('generate-summary', {
-          body: {
-            postId,
-            content: post.content
-          },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`
-          }
-        });
-
-        console.log('Edge function response:', { data, error });
-
-        if (error) {
-          throw new Error(error.message || 'Failed to generate summary');
-        }
-
-        if (!data) {
-          throw new Error('No data received from summary generation');
-        }
-        
-        toast.success("AI overview generated successfully!", { id: toastId });
-      } catch (err) {
-        console.error('Error generating AI overview:', err);
-        toast.error(`Failed to generate AI overview: ${err.message}`, { id: toastId });
-      }
+      setPosts((prevPosts) =>
+        prevPosts.map((p) => (p.id === postId ? updatedPost : p))
+      );
+    } catch (error) {
+      console.error("Error generating summary:", error);
     }
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">Loading posts...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">Error loading posts: {error.message}</div>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Fetched Posts</h1>
-        <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
-      </div>
-      
-      <PostList posts={posts || []} onGenerateAI={handleGenerateAI} />
+    <div className="container py-8">
+      <Tabs defaultValue="posts">
+        <TabsList className="mb-8">
+          <TabsTrigger value="posts" className="space-x-2">
+            <List className="w-4 h-4" />
+            <span>Posts</span>
+          </TabsTrigger>
+          <TabsTrigger value="digests" className="space-x-2">
+            <ScrollText className="w-4 h-4" />
+            <span>My Digests</span>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="posts">
+          <PostList posts={posts} onGenerateAI={handleGenerateAI} />
+        </TabsContent>
+        <TabsContent value="digests">
+          <DigestList posts={posts} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
