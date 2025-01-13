@@ -12,6 +12,8 @@ const AuthPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const checkSession = async () => {
       try {
         console.log("Checking session...");
@@ -19,35 +21,43 @@ const AuthPage = () => {
         
         if (sessionError) {
           console.error("Session check error:", sessionError);
-          setError(sessionError.message);
-          setIsChecking(false);
+          if (mounted) {
+            setError(sessionError.message);
+            setIsChecking(false);
+          }
           return;
         }
 
-        if (session) {
-          console.log("Active session found:", session);
+        if (session && mounted) {
+          console.log("Active session found, redirecting...");
           navigate("/");
-        } else {
-          console.log("No active session found");
+        } else if (mounted) {
+          console.log("No active session found, showing auth form");
           setIsChecking(false);
         }
       } catch (error) {
         console.error("Error in session check:", error);
-        setError(error instanceof Error ? error.message : "An error occurred");
-        setIsChecking(false);
+        if (mounted) {
+          setError(error instanceof Error ? error.message : "An error occurred");
+          setIsChecking(false);
+        }
       }
     };
     
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth state changed:", { event, session });
+      console.log("Auth state changed:", event, session);
       if (event === "SIGNED_IN" && session) {
+        console.log("User signed in, redirecting...");
         navigate("/");
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   if (isChecking) {
