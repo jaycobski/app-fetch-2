@@ -4,22 +4,36 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AuthPage = () => {
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Checking session...");
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("Session check error:", sessionError);
+          setError(sessionError.message);
+          setIsChecking(false);
+          return;
+        }
+
         if (session) {
-          console.log("User already authenticated, redirecting to /");
+          console.log("Active session found:", session);
           navigate("/");
+        } else {
+          console.log("No active session found");
+          setIsChecking(false);
         }
       } catch (error) {
-        console.error("Error checking session:", error);
-      } finally {
+        console.error("Error in session check:", error);
+        setError(error instanceof Error ? error.message : "An error occurred");
         setIsChecking(false);
       }
     };
@@ -39,9 +53,11 @@ const AuthPage = () => {
   if (isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Loading...</span>
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Checking authentication...</span>
+          </div>
         </div>
       </div>
     );
@@ -50,6 +66,12 @@ const AuthPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold">Welcome Back</h1>
           <p className="text-muted-foreground">Sign in to your account to continue</p>
