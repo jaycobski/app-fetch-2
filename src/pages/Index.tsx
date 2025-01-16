@@ -73,6 +73,55 @@ const Index = () => {
     }
   }, [session, toast]);
 
+  const handleGenerateAI = async (postId: string, enabled: boolean) => {
+    if (!enabled) return;
+
+    try {
+      const post = posts.find((p) => p.id === postId);
+      if (!post) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Post not found.",
+        });
+        return;
+      }
+
+      const { error: invokeError } = await supabase.functions.invoke("generate-summary", {
+        body: { postId, contentLength: post.content.length },
+      });
+
+      if (invokeError) throw invokeError;
+
+      // Refetch posts to get updated summaries
+      const { data: updatedPost, error: fetchError } = await supabase
+        .from("fetched_posts")
+        .select(`
+          *,
+          summaries (
+            summary_content,
+            status,
+            error_message
+          )
+        `)
+        .eq("id", postId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      setPosts((prevPosts) =>
+        prevPosts.map((p) => (p.id === postId ? updatedPost : p))
+      );
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate summary. Please try again later.",
+      });
+    }
+  };
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
