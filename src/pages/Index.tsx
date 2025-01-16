@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import PostList from "@/components/PostList";
 import DigestList from "@/components/DigestList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollText, List } from "lucide-react";
+import { ScrollText, List, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Summary {
   summary_content: string | null;
@@ -25,8 +26,9 @@ interface Post {
 
 const Index = () => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const { session, isLoading } = useSessionContext();
+  const { session, isLoading, error } = useSessionContext();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isLoading && !session) {
@@ -58,53 +60,42 @@ const Index = () => {
         setPosts(postsData || []);
       } catch (error) {
         console.error("Error fetching posts:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch posts. Please try again later.",
+        });
       }
     };
 
     if (session) {
       fetchPosts();
     }
-  }, [session]);
+  }, [session, toast]);
 
-  const handleGenerateAI = async (postId: string, enabled: boolean) => {
-    if (!enabled) return;
-
-    try {
-      const post = posts.find((p) => p.id === postId);
-      if (!post) return;
-
-      const { error } = await supabase.functions.invoke("generate-summary", {
-        body: { postId, contentLength: post.content.length },
-      });
-
-      if (error) throw error;
-
-      // Refetch posts to get updated summaries
-      const { data: updatedPost, error: fetchError } = await supabase
-        .from("fetched_posts")
-        .select(`
-          *,
-          summaries (
-            summary_content,
-            status,
-            error_message
-          )
-        `)
-        .eq("id", postId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      setPosts((prevPosts) =>
-        prevPosts.map((p) => (p.id === postId ? updatedPost : p))
-      );
-    } catch (error) {
-      console.error("Error generating summary:", error);
-    }
-  };
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <p className="text-destructive mb-4">Error: {error.message}</p>
+        <button
+          onClick={() => navigate("/auth")}
+          className="text-primary hover:underline"
+        >
+          Return to login
+        </button>
+      </div>
+    );
+  }
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
