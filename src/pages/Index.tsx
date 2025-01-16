@@ -6,7 +6,7 @@ import PostList from "@/components/PostList";
 import DigestList from "@/components/DigestList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollText, List, Loader2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface Summary {
   summary_content: string | null;
@@ -26,19 +26,21 @@ interface Post {
 
 const Index = () => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const { session, isLoading, error } = useSessionContext();
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const { session, isLoading: isLoadingSession } = useSessionContext();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!isLoading && !session) {
+    if (!isLoadingSession && !session) {
       navigate("/auth");
+      return;
     }
-  }, [session, isLoading, navigate]);
 
-  useEffect(() => {
     const fetchPosts = async () => {
-      console.log("Fetching posts...");
+      if (!session) return;
+      
+      setIsLoadingPosts(true);
       try {
         const { data: postsData, error: postsError } = await supabase
           .from("fetched_posts")
@@ -50,8 +52,6 @@ const Index = () => {
               error_message
             )
           `);
-
-        console.log("Fetch response:", { postsData, postsError });
 
         if (postsError) {
           throw postsError;
@@ -65,13 +65,13 @@ const Index = () => {
           title: "Error",
           description: "Failed to fetch posts. Please try again later.",
         });
+      } finally {
+        setIsLoadingPosts(false);
       }
     };
 
-    if (session) {
-      fetchPosts();
-    }
-  }, [session, toast]);
+    fetchPosts();
+  }, [session, isLoadingSession, navigate, toast]);
 
   const handleGenerateAI = async (postId: string, enabled: boolean) => {
     if (!enabled) return;
@@ -122,31 +122,19 @@ const Index = () => {
     }
   };
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <p className="text-destructive mb-4">Error: {error.message}</p>
-        <button
-          onClick={() => navigate("/auth")}
-          className="text-primary hover:underline"
-        >
-          Return to login
-        </button>
-      </div>
-    );
-  }
-
-  if (isLoading) {
+  // Only show loading spinner while checking session
+  if (isLoadingSession) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading...</span>
+          <span>Checking authentication...</span>
         </div>
       </div>
     );
   }
 
+  // Show content or posts loading state
   return (
     <div className="container py-8">
       <Tabs defaultValue="posts">
@@ -161,7 +149,16 @@ const Index = () => {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="posts">
-          <PostList posts={posts} onGenerateAI={handleGenerateAI} />
+          {isLoadingPosts ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span>Loading posts...</span>
+              </div>
+            </div>
+          ) : (
+            <PostList posts={posts} onGenerateAI={handleGenerateAI} />
+          )}
         </TabsContent>
         <TabsContent value="digests">
           <DigestList posts={posts} />
