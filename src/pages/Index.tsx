@@ -21,7 +21,12 @@ const Index = () => {
         .eq('user_id', session.user.id)
         .maybeSingle();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching ingest email:', error);
+        throw error;
+      }
+      
+      console.log('Ingest email data:', data);
       return data;
     },
   });
@@ -102,7 +107,7 @@ const Index = () => {
         <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
       </div>
 
-      {ingestEmail?.email_address && (
+      {ingestEmail?.email_address ? (
         <Alert className="mb-8">
           <AlertDescription>
             <div className="flex items-center justify-between gap-2">
@@ -123,6 +128,12 @@ const Index = () => {
               Share content to this email address to automatically save it to your account. 
               You can always find this email in your dashboard.
             </p>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="mb-8" variant="destructive">
+          <AlertDescription>
+            No ingest email found. Please try signing out and signing back in, or contact support if the issue persists.
           </AlertDescription>
         </Alert>
       )}
