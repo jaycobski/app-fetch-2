@@ -10,9 +10,14 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log("Index page mounted");
+    
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log("Checking authentication...");
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log("Auth check result:", { session, error });
       if (!session) {
+        console.log("No session found, redirecting to /auth");
         navigate("/auth");
       }
     };
@@ -20,12 +25,17 @@ const Index = () => {
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed in Index:", { event, session });
       if (!session) {
+        console.log("Session ended, redirecting to /auth");
         navigate("/auth");
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log("Index page unmounting, cleaning up subscription");
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const { data: posts, isLoading, error } = useQuery({
@@ -100,7 +110,14 @@ const Index = () => {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    console.log("Signing out...");
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error signing out:", error);
+      toast.error("Failed to sign out");
+    } else {
+      console.log("Successfully signed out");
+    }
   };
 
   if (isLoading) {

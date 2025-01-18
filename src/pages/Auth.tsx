@@ -16,18 +16,39 @@ const AuthPage = () => {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      if (event === "SIGNED_IN" && currentSession) {
+    console.log("Auth page mounted");
+    
+    const checkInitialSession = async () => {
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      console.log("Initial session check:", { currentSession, error });
+      if (currentSession) {
+        console.log("User already has a session, redirecting to /");
         setSession(currentSession);
+        navigate("/");
+      }
+    };
+    
+    checkInitialSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      console.log("Auth state changed:", { event, currentSession });
+      if (event === "SIGNED_IN" && currentSession) {
+        console.log("User signed in, redirecting to /");
+        setSession(currentSession);
+        navigate("/");
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log("Auth page unmounting, cleaning up subscription");
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const { data: ingestEmail, isError } = useQuery({
     queryKey: ['ingestEmail', session?.user?.id],
     queryFn: async () => {
+      console.log("Fetching ingest email for user:", session?.user?.id);
       if (!session?.user?.id) return null;
       const { data, error } = await supabase
         .from('user_ingest_emails')
@@ -35,6 +56,7 @@ const AuthPage = () => {
         .eq('user_id', session.user.id)
         .maybeSingle();
       
+      console.log("Ingest email query result:", { data, error });
       if (error) throw error;
       return data;
     },
@@ -49,6 +71,7 @@ const AuthPage = () => {
           description: "Email address copied to clipboard",
         });
       } catch (err) {
+        console.error("Failed to copy email:", err);
         toast({
           variant: "destructive",
           description: "Failed to copy email address",
