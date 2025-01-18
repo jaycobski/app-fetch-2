@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { verifyWebhookSignature } from 'https://esm.sh/@resend/webhook-verify@0.1.0'
+import { crypto } from "https://deno.land/std/crypto/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +20,29 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const resendSigningSecret = Deno.env.get("RESEND_SIGNING_SECRET")!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// Verify Resend webhook signature
+async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const signatureBytes = new Uint8Array(
+    signature.split(",")[1].split("").map(c => c.charCodeAt(0))
+  );
+
+  return await crypto.subtle.verify(
+    "HMAC",
+    key,
+    signatureBytes,
+    encoder.encode(payload)
+  );
+}
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
@@ -44,11 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Verify the webhook signature
     try {
-      const isValid = verifyWebhookSignature({
-        payload: rawBody,
-        signature,
-        secret: resendSigningSecret,
-      });
+      const isValid = await verifySignature(rawBody, signature, resendSigningSecret);
 
       if (!isValid) {
         console.error("Invalid webhook signature");
