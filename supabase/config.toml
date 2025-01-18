@@ -1,4 +1,3 @@
-[global]
 project_id = "umugzdepvpezfmnjowcn"
 
 [functions.process-inbound-email]
