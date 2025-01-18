@@ -1,4 +1,12 @@
 project_id = "umugzdepvpezfmnjowcn"
 
-[functions.generate-summary]
-verify_jwt = true
+[api]
+enabled = true
+url = "https://umugzdepvpezfmnjowcn.supabase.co"
+
+[db]
+port = 5432
+
+[functions]
+[functions.process-inbound-email]
+verify_jwt = false
