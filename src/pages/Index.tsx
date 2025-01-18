@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import PostList from "@/components/PostList";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const Index = () => {
     };
   }, [navigate]);
 
-  const { data: posts, isLoading, error } = useQuery({
+  const { data: posts, isLoading: postsLoading, error: postsError } = useQuery({
     queryKey: ["fetched-posts"],
     queryFn: async () => {
       console.log("Fetching posts...");
@@ -63,6 +64,35 @@ const Index = () => {
       return postsData;
     },
   });
+
+  const { data: ingestEmail, isLoading: emailLoading } = useQuery({
+    queryKey: ['ingestEmail'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('user_ingest_emails')
+        .select('email_address')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const copyEmailToClipboard = async () => {
+    if (ingestEmail?.email_address) {
+      try {
+        await navigator.clipboard.writeText(ingestEmail.email_address);
+        toast.success("Email address copied to clipboard");
+      } catch (err) {
+        console.error("Failed to copy email:", err);
+        toast.error("Failed to copy email address");
+      }
+    }
+  };
 
   const handleGenerateAI = async (postId: string, enabled: boolean) => {
     if (enabled) {
@@ -120,18 +150,18 @@ const Index = () => {
     }
   };
 
-  if (isLoading) {
+  if (postsLoading || emailLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">Loading posts...</div>
+        <div className="animate-pulse text-xl">Loading...</div>
       </div>
     );
   }
 
-  if (error) {
+  if (postsError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">Error loading posts: {error.message}</div>
+        <div className="text-red-500">Error loading posts: {postsError.message}</div>
       </div>
     );
   }
@@ -142,6 +172,30 @@ const Index = () => {
         <h1 className="text-3xl font-bold">Fetched Posts</h1>
         <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
       </div>
+
+      {ingestEmail?.email_address && (
+        <Alert className="mb-8">
+          <AlertDescription>
+            <div className="flex items-center justify-between gap-2">
+              <div className="break-all">
+                <span className="font-medium">Your content sharing email:</span>
+                <br />
+                {ingestEmail.email_address}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyEmailToClipboard}
+              >
+                Copy
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Share content to this email address to automatically save it to your account.
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
       
       <PostList posts={posts || []} onGenerateAI={handleGenerateAI} />
     </div>
