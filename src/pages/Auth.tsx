@@ -4,11 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import type { AuthError } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 
 const AuthPage = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [errorMessage, setErrorMessage] = useState("");
   const [session, setSession] = useState(null);
 
@@ -37,6 +40,15 @@ const AuthPage = () => {
     },
     enabled: !!session?.user?.id,
   });
+
+  const copyEmailToClipboard = async () => {
+    if (ingestEmail?.email_address) {
+      await navigator.clipboard.writeText(ingestEmail.email_address);
+      toast({
+        description: "Email address copied to clipboard",
+      });
+    }
+  };
 
   const getErrorMessage = (error: AuthError) => {
     switch (error.message) {
@@ -67,8 +79,21 @@ const AuthPage = () => {
 
         {ingestEmail && (
           <Alert>
-            <AlertDescription className="break-all">
-              Your content sharing email: {ingestEmail.email_address}
+            <AlertDescription>
+              <div className="flex items-center justify-between gap-2">
+                <div className="break-all">
+                  <span className="font-medium">Your content sharing email:</span>
+                  <br />
+                  {ingestEmail.email_address}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyEmailToClipboard}
+                >
+                  Copy
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground mt-2">
                 Share content to this email address to automatically save it to your account.
               </p>
