@@ -25,7 +25,7 @@ const AuthPage = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const { data: ingestEmail } = useQuery({
+  const { data: ingestEmail, isError } = useQuery({
     queryKey: ['ingestEmail', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return null;
@@ -33,7 +33,7 @@ const AuthPage = () => {
         .from('user_ingest_emails')
         .select('email_address')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
       return data;
