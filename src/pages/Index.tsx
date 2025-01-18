@@ -10,6 +10,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const Index = () => {
   const navigate = useNavigate();
 
+  const { data: ingestEmail, isLoading: emailLoading } = useQuery({
+    queryKey: ['ingestEmail'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('user_ingest_emails')
+        .select('email_address')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
   useEffect(() => {
     console.log("Index page mounted");
     
@@ -20,6 +37,14 @@ const Index = () => {
       if (!session) {
         console.log("No session found, redirecting to /auth");
         navigate("/auth");
+      } else if (ingestEmail?.email_address) {
+        toast.success(
+          "Welcome! Your content sharing email is ready.",
+          {
+            description: "You can find it in your dashboard. Use this email to automatically save content from your favorite platforms.",
+            duration: 6000,
+          }
+        );
       }
     };
     
@@ -37,7 +62,7 @@ const Index = () => {
       console.log("Index page unmounting, cleaning up subscription");
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, ingestEmail]);
 
   const { data: posts, isLoading: postsLoading, error: postsError } = useQuery({
     queryKey: ["fetched-posts"],
@@ -62,23 +87,6 @@ const Index = () => {
         throw postsError;
       }
       return postsData;
-    },
-  });
-
-  const { data: ingestEmail, isLoading: emailLoading } = useQuery({
-    queryKey: ['ingestEmail'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('user_ingest_emails')
-        .select('email_address')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
     },
   });
 
@@ -169,7 +177,7 @@ const Index = () => {
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Fetched Posts</h1>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
         <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
       </div>
 
@@ -191,7 +199,7 @@ const Index = () => {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground mt-2">
-              Share content to this email address to automatically save it to your account.
+              Share content to this email address to automatically save it to your account. You can always find this email in your dashboard.
             </p>
           </AlertDescription>
         </Alert>
