@@ -16,6 +16,7 @@ interface InboundEmail {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const resendSigningSecret = Deno.env.get("RESEND_SIGNING_SECRET");
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -26,6 +27,22 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Verify Resend webhook signature if secret is configured
+    if (resendSigningSecret) {
+      const signature = req.headers.get("resend-signature");
+      if (!signature) {
+        console.error("No Resend signature found");
+        return new Response(
+          JSON.stringify({ error: "Missing signature" }),
+          { 
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+      // TODO: Implement signature verification
+    }
+
     const email: InboundEmail = await req.json();
     console.log("Received email:", email);
 
