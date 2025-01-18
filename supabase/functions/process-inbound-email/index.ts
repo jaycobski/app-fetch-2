@@ -23,6 +23,9 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Verify Resend webhook signature
 async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
+  console.log("Verifying signature for payload:", payload.substring(0, 100) + "...");
+  console.log("With signature:", signature);
+  
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -36,15 +39,21 @@ async function verifySignature(payload: string, signature: string, secret: strin
     signature.split(",")[1].split("").map(c => c.charCodeAt(0))
   );
 
-  return await crypto.subtle.verify(
+  const isValid = await crypto.subtle.verify(
     "HMAC",
     key,
     signatureBytes,
     encoder.encode(payload)
   );
+  
+  console.log("Signature verification result:", isValid);
+  return isValid;
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  console.log("Received request:", req.method);
+  console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -52,7 +61,10 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     // Get the raw body for signature verification
     const rawBody = await req.clone().text();
+    console.log("Raw body:", rawBody.substring(0, 100) + "...");
+    
     const signature = req.headers.get("resend-signature");
+    console.log("Resend signature:", signature);
     
     if (!signature) {
       console.error("No Resend signature found");
@@ -91,11 +103,12 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const email: InboundEmail = JSON.parse(rawBody);
-    console.log("Received email:", email);
+    console.log("Parsed email:", email);
 
     // Extract user ID from the email address
     const toAddress = email.to;
     const match = toAddress.match(/^share-([a-f0-9]+)@/);
+    console.log("Email address match:", match);
     
     if (!match) {
       console.error("Invalid ingest email format");
@@ -114,6 +127,8 @@ const handler = async (req: Request): Promise<Response> => {
       .select('user_id')
       .eq('email_address', toAddress)
       .single();
+
+    console.log("Ingest email lookup result:", { ingestEmail, ingestError });
 
     if (ingestError || !ingestEmail) {
       console.error("Error finding user:", ingestError);
@@ -145,6 +160,8 @@ const handler = async (req: Request): Promise<Response> => {
       ])
       .select()
       .single();
+
+    console.log("Post creation result:", { post, postError });
 
     if (postError) {
       console.error("Error storing post:", postError);
