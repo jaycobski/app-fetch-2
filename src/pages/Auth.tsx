@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import type { AuthError } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 
@@ -43,10 +43,17 @@ const AuthPage = () => {
 
   const copyEmailToClipboard = async () => {
     if (ingestEmail?.email_address) {
-      await navigator.clipboard.writeText(ingestEmail.email_address);
-      toast({
-        description: "Email address copied to clipboard",
-      });
+      try {
+        await navigator.clipboard.writeText(ingestEmail.email_address);
+        toast({
+          description: "Email address copied to clipboard",
+        });
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          description: "Failed to copy email address",
+        });
+      }
     }
   };
 
@@ -77,7 +84,7 @@ const AuthPage = () => {
           </Alert>
         )}
 
-        {ingestEmail && (
+        {session && ingestEmail?.email_address && (
           <Alert>
             <AlertDescription>
               <div className="flex items-center justify-between gap-2">
