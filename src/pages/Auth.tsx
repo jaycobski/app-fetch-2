@@ -5,20 +5,38 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { AuthError } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
 
 const AuthPage = () => {
   const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState("");
+  const [session, setSession] = useState(null);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session) {
-        navigate("/");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      if (event === "SIGNED_IN" && currentSession) {
+        setSession(currentSession);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const { data: ingestEmail } = useQuery({
+    queryKey: ['ingestEmail', session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const { data, error } = await supabase
+        .from('user_ingest_emails')
+        .select('email_address')
+        .eq('user_id', session.user.id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!session?.user?.id,
+  });
 
   const getErrorMessage = (error: AuthError) => {
     switch (error.message) {
@@ -44,6 +62,17 @@ const AuthPage = () => {
         {errorMessage && (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        {ingestEmail && (
+          <Alert>
+            <AlertDescription className="break-all">
+              Your content sharing email: {ingestEmail.email_address}
+              <p className="text-sm text-muted-foreground mt-2">
+                Share content to this email address to automatically save it to your account.
+              </p>
+            </AlertDescription>
           </Alert>
         )}
 
