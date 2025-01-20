@@ -9,55 +9,55 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      fetched_posts: {
+      content_items: {
         Row: {
           author: string | null
           content: string | null
           created_at: string | null
-          external_id: string
+          external_id: string | null
           fetched_at: string | null
           id: string
           metadata: Json | null
-          source: string
-          subreddit: string | null
+          source_created_at: string | null
+          source_type: string
           title: string | null
           updated_at: string | null
-          url: string
+          url: string | null
           user_id: string
         }
         Insert: {
           author?: string | null
           content?: string | null
           created_at?: string | null
-          external_id: string
+          external_id?: string | null
           fetched_at?: string | null
           id?: string
           metadata?: Json | null
-          source: string
-          subreddit?: string | null
+          source_created_at?: string | null
+          source_type: string
           title?: string | null
           updated_at?: string | null
-          url: string
+          url?: string | null
           user_id: string
         }
         Update: {
           author?: string | null
           content?: string | null
           created_at?: string | null
-          external_id?: string
+          external_id?: string | null
           fetched_at?: string | null
           id?: string
           metadata?: Json | null
-          source?: string
-          subreddit?: string | null
+          source_created_at?: string | null
+          source_type?: string
           title?: string | null
           updated_at?: string | null
-          url?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "fetched_posts_user_id_fkey"
+            foreignKeyName: "content_items_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -125,7 +125,7 @@ export type Database = {
             foreignKeyName: "perplexity_completions_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
-            referencedRelation: "fetched_posts"
+            referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
           {
@@ -164,7 +164,7 @@ export type Database = {
             foreignKeyName: "post_summaries_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
-            referencedRelation: "fetched_posts"
+            referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
         ]
@@ -302,7 +302,7 @@ export type Database = {
             foreignKeyName: "summaries_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
-            referencedRelation: "fetched_posts"
+            referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
           {
