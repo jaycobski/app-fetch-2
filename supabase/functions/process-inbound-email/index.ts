@@ -43,8 +43,8 @@ serve(async (req) => {
       subject: emailData.headers.subject
     });
 
-    // Extract the recipient email address
-    const toEmail = emailData.envelope.recipients[0];
+    // Extract the recipient email address and clean it
+    const toEmail = emailData.envelope.recipients[0].toLowerCase().trim();
     console.log('Looking up recipient email:', toEmail);
 
     // Query the user_ingest_emails table to find the user
@@ -65,11 +65,18 @@ serve(async (req) => {
     }
 
     if (!userIngestEmail) {
+      // Log all email addresses in the database for debugging
+      const { data: allEmails } = await supabaseClient
+        .from('user_ingest_emails')
+        .select('email_address');
+      
+      console.log('Available email addresses in database:', allEmails);
+      
       console.error('No user found for email:', toEmail);
       return new Response(
         JSON.stringify({ 
           error: 'Invalid recipient email',
-          details: `No user found for email address: ${toEmail}`
+          details: `No user found for email address: ${toEmail}. Available emails: ${JSON.stringify(allEmails)}`
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
