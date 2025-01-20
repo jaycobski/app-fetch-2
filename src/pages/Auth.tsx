@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthError } from "@supabase/supabase-js";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -52,7 +52,7 @@ const AuthPage = () => {
       if (!session?.user?.id) return null;
       const { data, error } = await supabase
         .from('user_ingest_emails')
-        .select('email_address')
+        .select('email_address, cloudmailin_target, cloudmailin_username, cloudmailin_password')
         .eq('user_id', session.user.id)
         .maybeSingle();
       
@@ -61,6 +61,44 @@ const AuthPage = () => {
       return data;
     },
     enabled: !!session?.user?.id,
+  });
+
+  const updateCloudMailinSettings = useMutation({
+    mutationFn: async () => {
+      if (!session?.user?.id) throw new Error("No user session");
+      
+      // Generate random username and password for CloudMailin
+      const username = `user_${Math.random().toString(36).substring(2, 15)}`;
+      const password = Math.random().toString(36).substring(2, 15);
+      
+      // Construct the target URL with the Edge Function endpoint
+      const target = `https://umugzdepvpezfmnjowcn.supabase.co/functions/v1/process-inbound-email`;
+      
+      const { data, error } = await supabase
+        .from('user_ingest_emails')
+        .update({
+          cloudmailin_target: target,
+          cloudmailin_username: username,
+          cloudmailin_password: password,
+        })
+        .eq('user_id', session.user.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        description: "CloudMailin settings updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        description: "Failed to update CloudMailin settings",
+      });
+    },
   });
 
   const copyEmailToClipboard = async () => {
@@ -108,27 +146,58 @@ const AuthPage = () => {
         )}
 
         {session && ingestEmail?.email_address && (
-          <Alert>
-            <AlertDescription>
-              <div className="flex items-center justify-between gap-2">
-                <div className="break-all">
-                  <span className="font-medium">Your content sharing email:</span>
-                  <br />
-                  {ingestEmail.email_address}
+          <>
+            <Alert>
+              <AlertDescription>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="break-all">
+                    <span className="font-medium">Your content sharing email:</span>
+                    <br />
+                    {ingestEmail.email_address}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={copyEmailToClipboard}
+                  >
+                    Copy
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyEmailToClipboard}
-                >
-                  Copy
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Share content to this email address to automatically save it to your account.
-              </p>
-            </AlertDescription>
-          </Alert>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Share content to this email address to automatically save it to your account.
+                </p>
+              </AlertDescription>
+            </Alert>
+
+            <Alert>
+              <AlertDescription>
+                <div className="space-y-2">
+                  <div className="font-medium">CloudMailin Configuration</div>
+                  {ingestEmail.cloudmailin_target ? (
+                    <div className="text-sm space-y-1">
+                      <p><span className="font-medium">Target URL:</span> {ingestEmail.cloudmailin_target}</p>
+                      <p><span className="font-medium">Username:</span> {ingestEmail.cloudmailin_username}</p>
+                      <p><span className="font-medium">Password:</span> {ingestEmail.cloudmailin_password}</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        Configure CloudMailin to start receiving emails
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateCloudMailinSettings.mutate()}
+                        disabled={updateCloudMailinSettings.isPending}
+                      >
+                        {updateCloudMailinSettings.isPending ? "Configuring..." : "Configure"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          </>
         )}
 
         <div className="bg-card p-6 rounded-lg shadow-sm border">

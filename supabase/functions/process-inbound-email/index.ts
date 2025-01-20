@@ -1,145 +1,100 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { crypto } from "https://deno.land/std/crypto/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, resend-signature',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface CloudMailinEmail {
+  headers: {
+    [key: string]: string;
+  };
+  envelope: {
+    to: string;
+    from: string;
+    helo_domain: string;
+    remote_ip: string;
+    recipients: string[];
+  };
+  plain: string;
+  html: string;
+  reply_plain: string;
+  attachments: any[];
 }
 
-interface InboundEmail {
-  from: string
-  to: string
-  subject?: string
-  text?: string
-  html?: string
-}
-
-const resendSigningSecret = Deno.env.get("RESEND_SIGNING_SECRET")!;
-
-// Verify Resend webhook signature
-async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
-  console.log("Verifying signature for payload:", payload.substring(0, 100) + "...");
-  console.log("With signature:", signature);
-  
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["verify"]
-  );
-
-  const signatureBytes = new Uint8Array(
-    signature.split(",")[1].split("").map(c => c.charCodeAt(0))
-  );
-
-  const isValid = await crypto.subtle.verify(
-    "HMAC",
-    key,
-    signatureBytes,
-    encoder.encode(payload)
-  );
-  
-  console.log("Signature verification result:", isValid);
-  return isValid;
-}
-
-const handler = async (req: Request): Promise<Response> => {
-  console.log("Received request:", req.method);
-  console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
-
+serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the raw body for signature verification
-    const rawBody = await req.clone().text();
-    console.log("Raw body:", rawBody.substring(0, 100) + "...");
-    
-    const signature = req.headers.get("resend-signature");
-    console.log("Resend signature:", signature);
-    
-    if (!signature) {
-      console.error("No Resend signature found");
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Parse the incoming email data
+    const emailData: CloudMailinEmail = await req.json();
+    console.log('Received email:', emailData);
+
+    // Extract the user identifier from the recipient email
+    const toEmail = emailData.envelope.recipients[0];
+    const userIdentifier = toEmail.split('@')[0].replace('share-', '');
+
+    // Query the user_ingest_emails table to find the user
+    const { data: userIngestEmail, error: userError } = await supabaseClient
+      .from('user_ingest_emails')
+      .select('user_id, email_address')
+      .eq('email_address', toEmail)
+      .single();
+
+    if (userError || !userIngestEmail) {
+      console.error('Error finding user:', userError);
       return new Response(
-        JSON.stringify({ error: "Missing signature" }),
-        { 
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        JSON.stringify({ error: 'User not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Verify the webhook signature
-    try {
-      const isValid = await verifySignature(rawBody, signature, resendSigningSecret);
-
-      if (!isValid) {
-        console.error("Invalid webhook signature");
-        return new Response(
-          JSON.stringify({ error: "Invalid signature" }),
-          { 
-            status: 401,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          }
-        );
-      }
-    } catch (error) {
-      console.error("Error verifying webhook signature:", error);
-      return new Response(
-        JSON.stringify({ error: "Signature verification failed" }),
-        { 
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
+    // Store the email content in fetched_posts
+    const { data: post, error: postError } = await supabaseClient
+      .from('fetched_posts')
+      .insert({
+        user_id: userIngestEmail.user_id,
+        source: 'email',
+        external_id: crypto.randomUUID(),
+        title: emailData.headers.subject || 'Email Content',
+        content: emailData.html || emailData.plain,
+        url: `mailto:${emailData.envelope.from}`,
+        author: emailData.envelope.from,
+        metadata: {
+          headers: emailData.headers,
+          envelope: emailData.envelope,
         }
-      );
-    }
+      })
+      .select()
+      .single();
 
-    const email: InboundEmail = JSON.parse(rawBody);
-    console.log("Parsed email:", email);
-
-    // Instead of processing here, we'll invoke the process-email-content function
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Call the process-email-content function
-    const { data, error } = await supabase.functions.invoke('process-email-content', {
-      body: email
-    });
-
-    if (error) {
-      console.error("Error invoking process-email-content:", error);
+    if (postError) {
+      console.error('Error storing post:', postError);
       return new Response(
-        JSON.stringify({ error: "Failed to process email content" }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
+        JSON.stringify({ error: 'Failed to store email content' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ success: true, data }),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      JSON.stringify({ success: true, post }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error("Error processing email:", error);
+    console.error('Error processing email:', error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-}
-
-serve(handler);
+});

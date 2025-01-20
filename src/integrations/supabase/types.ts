@@ -316,6 +316,9 @@ export type Database = {
       }
       user_ingest_emails: {
         Row: {
+          cloudmailin_password: string | null
+          cloudmailin_target: string | null
+          cloudmailin_username: string | null
           created_at: string | null
           email_address: string
           id: string
@@ -323,6 +326,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cloudmailin_password?: string | null
+          cloudmailin_target?: string | null
+          cloudmailin_username?: string | null
           created_at?: string | null
           email_address: string
           id?: string
@@ -330,6 +336,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cloudmailin_password?: string | null
+          cloudmailin_target?: string | null
+          cloudmailin_username?: string | null
           created_at?: string | null
           email_address?: string
           id?: string

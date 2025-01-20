@@ -1,5 +1,1 @@
-[global]
 project_id = "umugzdepvpezfmnjowcn"
-
-[functions.process-inbound-email]
-verify_jwt = false
