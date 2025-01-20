@@ -45,7 +45,7 @@ const AuthPage = () => {
     };
   }, [navigate]);
 
-  const { data: ingestEmail, isError } = useQuery({
+  const { data: ingestEmail, isError, refetch } = useQuery({
     queryKey: ['ingestEmail', session?.user?.id],
     queryFn: async () => {
       console.log("Fetching ingest email for user:", session?.user?.id);
@@ -71,7 +71,7 @@ const AuthPage = () => {
       const username = `user_${Math.random().toString(36).substring(2, 15)}`;
       const password = Math.random().toString(36).substring(2, 15);
       
-      // Construct the target URL with the Edge Function endpoint - fixed URL format
+      // Use the correct CloudMailin HTTP POST URL format
       const target = `https://umugzdepvpezfmnjowcn.supabase.co/functions/v1/process-inbound-email`;
       
       const { data, error } = await supabase
@@ -86,17 +86,42 @@ const AuthPage = () => {
         .single();
       
       if (error) throw error;
+
+      // After updating the database, make the API call to CloudMailin
+      const cloudMailinResponse = await fetch('https://api.cloudmailin.com/api/v0.1/addresses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Note: You'll need to add this secret
+          'Authorization': `Token token=${process.env.CLOUDMAILIN_API_KEY}`,
+        },
+        body: JSON.stringify({
+          address: {
+            email: data.email_address,
+            target_url: target,
+            http_username: username,
+            http_password: password,
+            format: 'json'
+          }
+        })
+      });
+
+      if (!cloudMailinResponse.ok) {
+        throw new Error('Failed to configure CloudMailin');
+      }
+
       return data;
     },
     onSuccess: () => {
       toast({
         description: "CloudMailin settings updated successfully",
       });
+      refetch(); // Refresh the ingest email data
     },
     onError: (error) => {
       toast({
         variant: "destructive",
-        description: "Failed to update CloudMailin settings",
+        description: "Failed to update CloudMailin settings: " + error.message,
       });
     },
   });
