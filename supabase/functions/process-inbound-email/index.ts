@@ -39,9 +39,9 @@ serve(async (req) => {
     const emailData: CloudMailinEmail = await req.json();
     console.log('Received email:', emailData);
 
-    // Extract the user identifier from the recipient email
+    // Extract the recipient email address
     const toEmail = emailData.envelope.recipients[0];
-    const userIdentifier = toEmail.split('@')[0].replace('share-', '');
+    console.log('Recipient email:', toEmail);
 
     // Query the user_ingest_emails table to find the user
     const { data: userIngestEmail, error: userError } = await supabaseClient
@@ -50,20 +50,22 @@ serve(async (req) => {
       .eq('email_address', toEmail)
       .single();
 
+    console.log('User lookup result:', { userIngestEmail, userError });
+
     if (userError || !userIngestEmail) {
       console.error('Error finding user:', userError);
       return new Response(
-        JSON.stringify({ error: 'User not found' }),
+        JSON.stringify({ error: 'User not found', details: userError }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Store the email content in fetched_posts
+    // Store the email content in content_items
     const { data: post, error: postError } = await supabaseClient
-      .from('fetched_posts')
+      .from('content_items')
       .insert({
         user_id: userIngestEmail.user_id,
-        source: 'email',
+        source_type: 'email',
         external_id: crypto.randomUUID(),
         title: emailData.headers.subject || 'Email Content',
         content: emailData.html || emailData.plain,
@@ -80,7 +82,7 @@ serve(async (req) => {
     if (postError) {
       console.error('Error storing post:', postError);
       return new Response(
-        JSON.stringify({ error: 'Failed to store email content' }),
+        JSON.stringify({ error: 'Failed to store email content', details: postError }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -93,7 +95,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error processing email:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
