@@ -71,7 +71,7 @@ const AuthPage = () => {
       const username = `user_${Math.random().toString(36).substring(2, 15)}`;
       const password = Math.random().toString(36).substring(2, 15);
       
-      // Construct the target URL with the Edge Function endpoint
+      // Construct the target URL with the Edge Function endpoint - fixed URL format
       const target = `https://umugzdepvpezfmnjowcn.supabase.co/functions/v1/process-inbound-email`;
       
       const { data, error } = await supabase
