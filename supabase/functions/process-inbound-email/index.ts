@@ -37,7 +37,11 @@ serve(async (req) => {
 
     // Parse the incoming email data
     const emailData: CloudMailinEmail = await req.json();
-    console.log('Received email:', emailData);
+    console.log('Received email data:', {
+      to: emailData.envelope.recipients,
+      from: emailData.envelope.from,
+      subject: emailData.headers.subject
+    });
 
     // Extract the recipient email address
     const toEmail = emailData.envelope.recipients[0];
