@@ -41,21 +41,32 @@ serve(async (req) => {
 
     // Extract the recipient email address
     const toEmail = emailData.envelope.recipients[0];
-    console.log('Recipient email:', toEmail);
+    console.log('Looking up recipient email:', toEmail);
 
     // Query the user_ingest_emails table to find the user
     const { data: userIngestEmail, error: userError } = await supabaseClient
       .from('user_ingest_emails')
       .select('user_id, email_address')
       .eq('email_address', toEmail)
-      .single();
+      .maybeSingle();
 
     console.log('User lookup result:', { userIngestEmail, userError });
 
-    if (userError || !userIngestEmail) {
-      console.error('Error finding user:', userError);
+    if (userError) {
+      console.error('Database error finding user:', userError);
       return new Response(
-        JSON.stringify({ error: 'User not found', details: userError }),
+        JSON.stringify({ error: 'Database error', details: userError }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!userIngestEmail) {
+      console.error('No user found for email:', toEmail);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid recipient email',
+          details: `No user found for email address: ${toEmail}`
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
