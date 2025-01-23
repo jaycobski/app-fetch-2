@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import SocialContentCard from "./SocialContentCard";
 import { Loader2 } from "lucide-react";
+import PostCard from "./PostCard";
 
 const SocialContentList = () => {
   console.log("SocialContentList component rendering");
@@ -10,9 +10,16 @@ const SocialContentList = () => {
     queryKey: ['socialContent'],
     queryFn: async () => {
       console.log("Fetching social content");
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session?.session?.user) {
+        throw new Error("No authenticated user");
+      }
+      
       const { data, error } = await supabase
         .from('social_content_ingests')
         .select('*')
+        .eq('user_id', session.session.user.id)
         .order('created_at', { ascending: false });
       
       console.log("Supabase response:", { data, error });
@@ -52,7 +59,18 @@ const SocialContentList = () => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {socialContent.map((content) => (
-        <SocialContentCard key={content.id} content={content} />
+        <PostCard
+          key={content.id}
+          post={{
+            id: content.id,
+            title: content.content_title || "Untitled Post",
+            content: content.content_body || "",
+            author: content.original_author || "",
+            url: content.original_url || "",
+            summaries: []
+          }}
+          onGenerateAI={() => {}}
+        />
       ))}
     </div>
   );
