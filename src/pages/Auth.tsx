@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthError } from "@supabase/supabase-js";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import SocialContentList from "@/components/SocialContentList";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -158,7 +160,7 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-4">
+      <div className="w-full max-w-4xl space-y-4">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold">Welcome Back</h1>
           <p className="text-muted-foreground">Sign in to your account to continue</p>
@@ -170,78 +172,95 @@ const AuthPage = () => {
           </Alert>
         )}
 
-        {session && ingestEmail?.email_address && (
-          <>
-            <Alert>
-              <AlertDescription>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="break-all">
-                    <span className="font-medium">Your content sharing email:</span>
-                    <br />
-                    {ingestEmail.email_address}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyEmailToClipboard}
-                  >
-                    Copy
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Share content to this email address to automatically save it to your account.
-                </p>
-              </AlertDescription>
-            </Alert>
-
-            <Alert>
-              <AlertDescription>
-                <div className="space-y-2">
-                  <div className="font-medium">CloudMailin Configuration</div>
-                  {ingestEmail.cloudmailin_target ? (
-                    <div className="text-sm space-y-1">
-                      <p><span className="font-medium">Target URL:</span> {ingestEmail.cloudmailin_target}</p>
-                      <p><span className="font-medium">Username:</span> {ingestEmail.cloudmailin_username}</p>
-                      <p><span className="font-medium">Password:</span> {ingestEmail.cloudmailin_password}</p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
-                        Configure CloudMailin to start receiving emails
+        {session ? (
+          <Tabs defaultValue="content" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="settings">Account Settings</TabsTrigger>
+              <TabsTrigger value="content">Social Content</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="settings">
+              {ingestEmail?.email_address && (
+                <>
+                  <Alert>
+                    <AlertDescription>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="break-all">
+                          <span className="font-medium">Your content sharing email:</span>
+                          <br />
+                          {ingestEmail.email_address}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={copyEmailToClipboard}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Share content to this email address to automatically save it to your account.
                       </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateCloudMailinSettings.mutate()}
-                        disabled={updateCloudMailinSettings.isPending}
-                      >
-                        {updateCloudMailinSettings.isPending ? "Configuring..." : "Configure"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          </>
-        )}
+                    </AlertDescription>
+                  </Alert>
 
-        <div className="bg-card p-6 rounded-lg shadow-sm border">
-          <Auth
-            supabaseClient={supabase}
-            appearance={{
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    brand: 'rgb(var(--primary))',
-                    brandAccent: 'rgb(var(--primary))',
+                  <Alert>
+                    <AlertDescription>
+                      <div className="space-y-2">
+                        <div className="font-medium">CloudMailin Configuration</div>
+                        {ingestEmail.cloudmailin_target ? (
+                          <div className="text-sm space-y-1">
+                            <p><span className="font-medium">Target URL:</span> {ingestEmail.cloudmailin_target}</p>
+                            <p><span className="font-medium">Username:</span> {ingestEmail.cloudmailin_username}</p>
+                            <p><span className="font-medium">Password:</span> {ingestEmail.cloudmailin_password}</p>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">
+                              Configure CloudMailin to start receiving emails
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateCloudMailinSettings.mutate()}
+                              disabled={updateCloudMailinSettings.isPending}
+                            >
+                              {updateCloudMailinSettings.isPending ? "Configuring..." : "Configure"}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                </>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="content">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
+                <SocialContentList />
+              </div>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="bg-card p-6 rounded-lg shadow-sm border">
+            <Auth
+              supabaseClient={supabase}
+              appearance={{
+                theme: ThemeSupa,
+                variables: {
+                  default: {
+                    colors: {
+                      brand: 'rgb(var(--primary))',
+                      brandAccent: 'rgb(var(--primary))',
+                    },
                   },
                 },
-              },
-            }}
-            providers={[]}
-          />
-        </div>
+              }}
+              providers={[]}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
