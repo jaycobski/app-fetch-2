@@ -42,6 +42,16 @@ const AuthPage = () => {
     };
   }, []);
 
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        variant: "destructive",
+        description: "Failed to sign out: " + error.message,
+      });
+    }
+  };
+
   const { data: ingestEmail, isError, refetch } = useQuery({
     queryKey: ['ingestEmail', session?.user?.id],
     queryFn: async () => {
@@ -159,7 +169,14 @@ const AuthPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-4xl space-y-4">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Welcome Back</h1>
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Welcome Back</h1>
+            {session && (
+              <Button variant="outline" onClick={handleSignOut}>
+                Sign Out
+              </Button>
+            )}
+          </div>
           <p className="text-muted-foreground">Sign in to your account to continue</p>
         </div>
         
