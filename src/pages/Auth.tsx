@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import type { AuthError } from "@supabase/supabase-js";
+import type { AuthError, Session } from "@supabase/supabase-js";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import SocialContentList from "@/components/SocialContentList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +15,7 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [errorMessage, setErrorMessage] = useState("");
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     console.log("Auth page mounted");
@@ -31,19 +31,16 @@ const AuthPage = () => {
     
     checkInitialSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      console.log("Auth state changed:", { event, currentSession });
-      if (event === "SIGNED_IN" && currentSession) {
-        console.log("User signed in, updating session state");
-        setSession(currentSession);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      console.log("Auth state changed:", { currentSession });
+      setSession(currentSession);
     });
 
     return () => {
       console.log("Auth page unmounting, cleaning up subscription");
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const { data: ingestEmail, isError, refetch } = useQuery({
     queryKey: ['ingestEmail', session?.user?.id],
@@ -156,6 +153,8 @@ const AuthPage = () => {
     }
   };
 
+  console.log("Current session state:", session);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-4xl space-y-4">
@@ -202,13 +201,10 @@ const AuthPage = () => {
                           Copy
                         </Button>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Share content to this email address to automatically save it to your account.
-                      </p>
                     </AlertDescription>
                   </Alert>
 
-                  <Alert>
+                  <Alert className="mt-4">
                     <AlertDescription>
                       <div className="space-y-2">
                         <div className="font-medium">CloudMailin Configuration</div>
