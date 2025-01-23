@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import type { Session } from "@supabase/supabase-js";
-import { useQuery } from "@tanstack/react-query";
+import type { Session, AuthError } from "@supabase/supabase-js";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import SocialContentList from "@/components/SocialContentList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
