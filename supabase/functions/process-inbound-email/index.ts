@@ -24,7 +24,6 @@ interface CloudMailinEmail {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -35,7 +34,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Parse the incoming email data
     const emailData: CloudMailinEmail = await req.json();
     console.log('Received email data:', {
       to: emailData.envelope.recipients,
@@ -43,18 +41,14 @@ serve(async (req) => {
       subject: emailData.headers.subject
     });
 
-    // Extract the recipient email address and clean it
     const toEmail = emailData.envelope.recipients[0].toLowerCase().trim();
     console.log('Looking up recipient email:', toEmail);
 
-    // Query the user_ingest_emails table to find the user
     const { data: userIngestEmail, error: userError } = await supabaseClient
       .from('user_ingest_emails')
       .select('user_id, email_address')
       .eq('email_address', toEmail)
       .maybeSingle();
-
-    console.log('User lookup result:', { userIngestEmail, userError });
 
     if (userError) {
       console.error('Database error finding user:', userError);
@@ -65,52 +59,42 @@ serve(async (req) => {
     }
 
     if (!userIngestEmail) {
-      // Log all email addresses in the database for debugging
-      const { data: allEmails } = await supabaseClient
-        .from('user_ingest_emails')
-        .select('email_address');
-      
-      console.log('Available email addresses in database:', allEmails);
-      
       console.error('No user found for email:', toEmail);
       return new Response(
-        JSON.stringify({ 
-          error: 'Invalid recipient email',
-          details: `No user found for email address: ${toEmail}. Available emails: ${JSON.stringify(allEmails)}`
-        }),
+        JSON.stringify({ error: 'Invalid recipient email' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Store the email content in content_items
-    const { data: post, error: postError } = await supabaseClient
-      .from('content_items')
+    // Store in social_content_ingests table
+    const { data: ingest, error: ingestError } = await supabaseClient
+      .from('social_content_ingests')
       .insert({
         user_id: userIngestEmail.user_id,
         source_type: 'email',
-        external_id: crypto.randomUUID(),
-        title: emailData.headers.subject || 'Email Content',
-        content: emailData.html || emailData.plain,
-        url: `mailto:${emailData.envelope.from}`,
-        author: emailData.envelope.from,
+        content_title: emailData.headers.subject || 'Email Content',
+        content_body: emailData.html || emailData.plain,
+        original_url: `mailto:${emailData.envelope.from}`,
+        original_author: emailData.envelope.from,
         metadata: {
           headers: emailData.headers,
           envelope: emailData.envelope,
-        }
+        },
+        source_created_at: new Date().toISOString()
       })
       .select()
       .single();
 
-    if (postError) {
-      console.error('Error storing post:', postError);
+    if (ingestError) {
+      console.error('Error storing content:', ingestError);
       return new Response(
-        JSON.stringify({ error: 'Failed to store email content', details: postError }),
+        JSON.stringify({ error: 'Failed to store email content', details: ingestError }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ success: true, post }),
+      JSON.stringify({ success: true, ingest }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
