@@ -2,17 +2,15 @@ import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import type { AuthError, Session } from "@supabase/supabase-js";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import type { Session } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
 import SocialContentList from "@/components/SocialContentList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const AuthPage = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [errorMessage, setErrorMessage] = useState("");
   const [session, setSession] = useState<Session | null>(null);
@@ -162,8 +160,6 @@ const AuthPage = () => {
         return error.message;
     }
   };
-
-  console.log("Current session state:", session);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

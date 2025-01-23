@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import PostCard from "./PostCard";
+import SocialContentCard from "./SocialContentCard";
 
 const SocialContentList = () => {
   console.log("SocialContentList component rendering");
@@ -59,17 +59,9 @@ const SocialContentList = () => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {socialContent.map((content) => (
-        <PostCard
+        <SocialContentCard
           key={content.id}
-          post={{
-            id: content.id,
-            title: content.content_title || "Untitled Post",
-            content: content.content_body || "",
-            author: content.original_author || "",
-            url: content.original_url || "",
-            summaries: []
-          }}
-          onGenerateAI={() => {}}
+          content={content}
         />
       ))}
     </div>
