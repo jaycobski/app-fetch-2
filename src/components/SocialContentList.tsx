@@ -4,20 +4,25 @@ import SocialContentCard from "./SocialContentCard";
 import { Loader2 } from "lucide-react";
 
 const SocialContentList = () => {
+  console.log("SocialContentList component rendering");
+  
   const { data: socialContent, isLoading, error } = useQuery({
     queryKey: ['socialContent'],
     queryFn: async () => {
+      console.log("Fetching social content");
       const { data, error } = await supabase
         .from('social_content_ingests')
         .select('*')
         .order('created_at', { ascending: false });
       
+      console.log("Supabase response:", { data, error });
       if (error) throw error;
       return data;
     },
   });
 
   if (isLoading) {
+    console.log("SocialContentList is loading");
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -26,6 +31,7 @@ const SocialContentList = () => {
   }
 
   if (error) {
+    console.error("SocialContentList error:", error);
     return (
       <div className="text-center py-8 text-destructive">
         Error loading content: {error.message}
@@ -34,6 +40,7 @@ const SocialContentList = () => {
   }
 
   if (!socialContent?.length) {
+    console.log("No social content found");
     return (
       <div className="text-center py-8 text-muted-foreground">
         No content found. Start by sharing content to your ingest email!
@@ -41,6 +48,7 @@ const SocialContentList = () => {
     );
   }
 
+  console.log("Rendering social content:", socialContent);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {socialContent.map((content) => (

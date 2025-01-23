@@ -24,9 +24,8 @@ const AuthPage = () => {
       const { data: { session: currentSession }, error } = await supabase.auth.getSession();
       console.log("Initial session check:", { currentSession, error });
       if (currentSession) {
-        console.log("User already has a session, redirecting to /");
+        console.log("Setting session state");
         setSession(currentSession);
-        navigate("/");
       }
     };
     
@@ -35,9 +34,8 @@ const AuthPage = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       console.log("Auth state changed:", { event, currentSession });
       if (event === "SIGNED_IN" && currentSession) {
-        console.log("User signed in, redirecting to /");
+        console.log("User signed in, updating session state");
         setSession(currentSession);
-        navigate("/");
       }
     });
 
@@ -175,9 +173,15 @@ const AuthPage = () => {
         {session ? (
           <Tabs defaultValue="content" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="settings">Account Settings</TabsTrigger>
               <TabsTrigger value="content">Social Content</TabsTrigger>
+              <TabsTrigger value="settings">Account Settings</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="content" className="mt-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
+                <SocialContentList />
+              </div>
+            </TabsContent>
             
             <TabsContent value="settings">
               {ingestEmail?.email_address && (
@@ -234,12 +238,6 @@ const AuthPage = () => {
                   </Alert>
                 </>
               )}
-            </TabsContent>
-            
-            <TabsContent value="content">
-              <div className="bg-card rounded-lg shadow-sm border p-6">
-                <SocialContentList />
-              </div>
             </TabsContent>
           </Tabs>
         ) : (
