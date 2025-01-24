@@ -35,24 +35,32 @@ serve(async (req) => {
     }
 
     if (!ingest) {
+      console.error('No ingest record found for ID:', ingestId);
       throw new Error('Ingest record not found');
     }
 
     console.log("Found ingest record:", ingest);
 
+    // Prepare content item data
+    const contentItemData = {
+      user_id: ingest.user_id,
+      source_type: ingest.source_type,
+      title: ingest.content_title || 'Untitled Content',
+      content: ingest.content_body,
+      url: ingest.original_url,
+      author: ingest.original_author,
+      metadata: ingest.metadata,
+      source_created_at: ingest.source_created_at,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    console.log("Preparing to insert content item:", contentItemData);
+
     // Insert into content_items
     const { data: contentItem, error: insertError } = await supabaseClient
       .from('content_items')
-      .insert({
-        user_id: ingest.user_id,
-        source_type: ingest.source_type,
-        title: ingest.content_title || 'Untitled Content',
-        content: ingest.content_body,
-        url: ingest.original_url,
-        author: ingest.original_author,
-        metadata: ingest.metadata,
-        source_created_at: ingest.source_created_at
-      })
+      .insert(contentItemData)
       .select()
       .single();
 
@@ -72,7 +80,7 @@ serve(async (req) => {
       throw insertError;
     }
 
-    console.log("Created content item:", contentItem);
+    console.log("Successfully created content item:", contentItem);
 
     // Update the ingest record as processed
     const { error: updateError } = await supabaseClient
@@ -87,6 +95,8 @@ serve(async (req) => {
       console.error('Error updating ingest status:', updateError);
       throw updateError;
     }
+
+    console.log("Successfully updated ingest record as processed");
 
     return new Response(
       JSON.stringify({ success: true, contentItem }),
