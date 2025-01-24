@@ -66,6 +66,17 @@ serve(async (req) => {
       );
     }
 
+    // Sanitize and prepare metadata
+    const sanitizedMetadata = {
+      headers: emailData.headers,
+      envelope: {
+        from: emailData.envelope.from,
+        to: emailData.envelope.recipients,
+        helo_domain: emailData.envelope.helo_domain,
+        remote_ip: emailData.envelope.remote_ip
+      }
+    };
+
     // Store in social_content_ingests table
     const { data: ingest, error: ingestError } = await supabaseClient
       .from('social_content_ingests')
@@ -74,12 +85,9 @@ serve(async (req) => {
         source_type: 'email',
         content_title: emailData.headers.subject || 'Email Content',
         content_body: emailData.html || emailData.plain,
-        original_url: `mailto:${emailData.envelope.from}`,
+        original_url: emailData.headers['x-original-url'] || `mailto:${emailData.envelope.from}`,
         original_author: emailData.envelope.from,
-        metadata: {
-          headers: emailData.headers,
-          envelope: emailData.envelope,
-        },
+        metadata: sanitizedMetadata,
         source_created_at: new Date().toISOString()
       })
       .select()
@@ -92,6 +100,8 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Successfully stored email content:', ingest);
 
     return new Response(
       JSON.stringify({ success: true, ingest }),
