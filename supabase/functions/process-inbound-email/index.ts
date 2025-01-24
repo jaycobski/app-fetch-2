@@ -23,22 +23,44 @@ interface CloudMailinEmail {
   attachments: any[];
 }
 
-// Helper function to sanitize objects for JSON storage
-const sanitizeForJson = (obj: any): any => {
-  const seen = new WeakSet();
-  return JSON.parse(JSON.stringify(obj, (key, value) => {
-    if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
-        return '[Circular Reference]';
+// Helper function to create a safe metadata object
+const createSafeMetadata = (emailData: CloudMailinEmail) => {
+  try {
+    const safeMetadata = {
+      headers: {
+        subject: String(emailData.headers.subject || ''),
+        contentType: String(emailData.headers['content-type'] || ''),
+        originalUrl: String(emailData.headers['x-original-url'] || ''),
+        from: String(emailData.headers.from || ''),
+        to: String(emailData.headers.to || '')
+      },
+      envelope: {
+        from: String(emailData.envelope.from || ''),
+        to: emailData.envelope.recipients.map(r => String(r)),
+        heloDomain: String(emailData.envelope.helo_domain || ''),
+        remoteIp: String(emailData.envelope.remote_ip || '')
       }
-      seen.add(value);
-    }
-    // Convert undefined to null for JSON compatibility
-    return value === undefined ? null : value;
-  }));
+    };
+    
+    // Test that it can be properly serialized
+    JSON.stringify(safeMetadata);
+    return safeMetadata;
+  } catch (error) {
+    console.error('Error creating safe metadata:', error);
+    // Return a minimal safe object if there's an error
+    return {
+      headers: {},
+      envelope: {
+        to: [],
+        from: ''
+      }
+    };
+  }
 };
 
 serve(async (req) => {
+  console.log('Processing incoming email request');
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -81,24 +103,9 @@ serve(async (req) => {
       );
     }
 
-    // Sanitize and prepare metadata
-    const sanitizedMetadata = sanitizeForJson({
-      headers: {
-        subject: emailData.headers.subject,
-        'content-type': emailData.headers['content-type'],
-        'x-original-url': emailData.headers['x-original-url'],
-        from: emailData.headers.from,
-        to: emailData.headers.to
-      },
-      envelope: {
-        from: emailData.envelope.from,
-        to: emailData.envelope.recipients,
-        helo_domain: emailData.envelope.helo_domain,
-        remote_ip: emailData.envelope.remote_ip
-      }
-    });
-
-    console.log('Sanitized metadata:', sanitizedMetadata);
+    // Create safe metadata object
+    const metadata = createSafeMetadata(emailData);
+    console.log('Safe metadata created:', metadata);
 
     // Store in social_content_ingests table
     const { data: ingest, error: ingestError } = await supabaseClient
@@ -107,10 +114,10 @@ serve(async (req) => {
         user_id: userIngestEmail.user_id,
         source_type: 'email',
         content_title: emailData.headers.subject || 'Email Content',
-        content_body: emailData.html || emailData.plain,
+        content_body: emailData.html || emailData.plain || '',
         original_url: emailData.headers['x-original-url'] || `mailto:${emailData.envelope.from}`,
         original_author: emailData.envelope.from,
-        metadata: sanitizedMetadata,
+        metadata: metadata,
         source_created_at: new Date().toISOString()
       })
       .select()
