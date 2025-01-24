@@ -13,8 +13,11 @@ const SocialContentList = () => {
       const { data: session } = await supabase.auth.getSession();
       
       if (!session?.session?.user) {
+        console.error("No authenticated user found");
         throw new Error("No authenticated user");
       }
+      
+      console.log("Authenticated user ID:", session.session.user.id);
       
       const { data, error } = await supabase
         .from('social_content_ingests')
@@ -22,8 +25,13 @@ const SocialContentList = () => {
         .eq('user_id', session.session.user.id)
         .order('created_at', { ascending: false });
       
-      console.log("Supabase response:", { data, error });
-      if (error) throw error;
+      console.log("Supabase query response:", { data, error });
+      
+      if (error) {
+        console.error("Supabase query error:", error);
+        throw error;
+      }
+      
       return data;
     },
   });
@@ -47,7 +55,7 @@ const SocialContentList = () => {
   }
 
   if (!socialContent?.length) {
-    console.log("No social content found");
+    console.log("No social content found in response");
     return (
       <div className="text-center py-8 text-muted-foreground">
         No content found. Start by sharing content to your ingest email!
