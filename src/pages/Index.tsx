@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import TestUrlIngest from "@/components/TestUrlIngest";
+import SocialContentList from "@/components/SocialContentList";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -137,9 +139,17 @@ const Index = () => {
           </AlertDescription>
         </Alert>
       )}
-      
-      <div className="text-center text-muted-foreground mt-8">
-        Start sharing content by sending it to your unique email address above.
+
+      <div className="space-y-8">
+        <div className="bg-card rounded-lg p-6 shadow-sm">
+          <h2 className="text-xl font-semibold mb-4">Test URL Content Extraction</h2>
+          <TestUrlIngest />
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Your Content</h2>
+          <SocialContentList />
+        </div>
       </div>
     </div>
   );
