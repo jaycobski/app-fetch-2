@@ -18,12 +18,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get unprocessed content with URLs
+    // Get unprocessed content
     const { data: unprocessedContent, error: fetchError } = await supabaseClient
       .from('social_content_ingests')
       .select('*')
       .eq('processed', false)
-      .not('original_url', 'is', null)
       .limit(10);
 
     if (fetchError) {
@@ -43,39 +42,71 @@ serve(async (req) => {
     const processResults = await Promise.all(
       unprocessedContent.map(async (content) => {
         try {
-          console.log(`Fetching content from URL: ${content.original_url}`);
-          const response = await fetch(content.original_url);
-          const html = await response.text();
+          console.log(`Processing content ID: ${content.id}`);
+          
+          let extractedContent = content.content_body;
+          let extractedTitle = content.content_title;
 
-          // Basic content extraction - you might want to use a more sophisticated parser
-          const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-          const title = titleMatch ? titleMatch[1] : null;
+          // If there's a URL, try to fetch its content
+          if (content.original_url && !content.original_url.startsWith('mailto:')) {
+            console.log(`Fetching content from URL: ${content.original_url}`);
+            try {
+              const response = await fetch(content.original_url);
+              const html = await response.text();
 
-          // Extract text content (basic implementation)
-          const textContent = html
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+              // Basic content extraction
+              const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+              extractedTitle = titleMatch ? titleMatch[1] : content.content_title;
 
-          // Update the record with extracted content
+              // Extract text content (basic implementation)
+              extractedContent = html
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            } catch (error) {
+              console.error(`Error fetching URL content: ${error.message}`);
+              // Continue with original content if URL fetch fails
+            }
+          }
+
+          // Insert into content_items
+          const { data: contentItem, error: insertError } = await supabaseClient
+            .from('content_items')
+            .insert({
+              user_id: content.user_id,
+              source_type: content.source_type,
+              title: extractedTitle || 'Untitled Content',
+              content: extractedContent || content.content_body,
+              url: content.original_url,
+              author: content.original_author,
+              metadata: content.metadata,
+              source_created_at: content.source_created_at
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error(`Error inserting content item: ${insertError.message}`);
+            throw insertError;
+          }
+
+          // Update the social_content_ingests record as processed
           const { error: updateError } = await supabaseClient
             .from('social_content_ingests')
             .update({
-              content_title: title || content.content_title,
-              content_body: textContent,
               processed: true,
               updated_at: new Date().toISOString(),
             })
             .eq('id', content.id);
 
           if (updateError) {
-            console.error(`Error updating content ${content.id}:`, updateError);
+            console.error(`Error updating ingest status: ${updateError.message}`);
             throw updateError;
           }
 
-          return { id: content.id, success: true };
+          return { id: content.id, success: true, contentItemId: contentItem.id };
         } catch (error) {
           console.error(`Error processing content ${content.id}:`, error);
           
