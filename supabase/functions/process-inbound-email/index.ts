@@ -23,6 +23,21 @@ interface CloudMailinEmail {
   attachments: any[];
 }
 
+// Helper function to sanitize objects for JSON storage
+const sanitizeForJson = (obj: any): any => {
+  const seen = new WeakSet();
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular Reference]';
+      }
+      seen.add(value);
+    }
+    // Convert undefined to null for JSON compatibility
+    return value === undefined ? null : value;
+  }));
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -67,15 +82,23 @@ serve(async (req) => {
     }
 
     // Sanitize and prepare metadata
-    const sanitizedMetadata = {
-      headers: emailData.headers,
+    const sanitizedMetadata = sanitizeForJson({
+      headers: {
+        subject: emailData.headers.subject,
+        'content-type': emailData.headers['content-type'],
+        'x-original-url': emailData.headers['x-original-url'],
+        from: emailData.headers.from,
+        to: emailData.headers.to
+      },
       envelope: {
         from: emailData.envelope.from,
         to: emailData.envelope.recipients,
         helo_domain: emailData.envelope.helo_domain,
         remote_ip: emailData.envelope.remote_ip
       }
-    };
+    });
+
+    console.log('Sanitized metadata:', sanitizedMetadata);
 
     // Store in social_content_ingests table
     const { data: ingest, error: ingestError } = await supabaseClient
