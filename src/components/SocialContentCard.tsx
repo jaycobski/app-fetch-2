@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Mail, MessageSquare, Clock } from "lucide-react";
+import { ExternalLink, Mail, MessageSquare, Clock, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface SocialContentCardProps {
@@ -13,6 +13,8 @@ interface SocialContentCardProps {
     original_author?: string | null;
     source_created_at?: string | null;
     created_at: string;
+    processed: boolean;
+    error_message?: string | null;
   };
 }
 
@@ -33,7 +35,7 @@ const SocialContentCard = ({ content }: SocialContentCardProps) => {
           <CardTitle className="text-lg font-medium">
             {content.content_title || "Untitled Content"}
           </CardTitle>
-          <Badge variant="outline" className="ml-2">
+          <Badge variant={content.processed ? "default" : "secondary"} className="ml-2">
             <span className="flex items-center gap-1">
               {getSourceIcon(content.source_type)}
               {content.source_type}
@@ -43,6 +45,13 @@ const SocialContentCard = ({ content }: SocialContentCardProps) => {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {content.error_message && (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              {content.error_message}
+            </div>
+          )}
+          
           {content.content_body && (
             <p className="text-sm text-muted-foreground line-clamp-3">
               {content.content_body}

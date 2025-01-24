@@ -2,11 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import SocialContentCard from "./SocialContentCard";
+import { toast } from "sonner";
 
 const SocialContentList = () => {
-  console.log("SocialContentList component rendering");
-  
-  const { data: socialContent, isLoading, error } = useQuery({
+  const { data: socialContent, isLoading, error, refetch } = useQuery({
     queryKey: ['socialContent'],
     queryFn: async () => {
       console.log("Fetching social content");
@@ -29,15 +28,16 @@ const SocialContentList = () => {
       
       if (error) {
         console.error("Supabase query error:", error);
+        toast.error("Failed to fetch content");
         throw error;
       }
       
       return data;
     },
+    refetchInterval: 5000, // Refetch every 5 seconds to check for new content
   });
 
   if (isLoading) {
-    console.log("SocialContentList is loading");
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -49,13 +49,18 @@ const SocialContentList = () => {
     console.error("SocialContentList error:", error);
     return (
       <div className="text-center py-8 text-destructive">
-        Error loading content: {error.message}
+        <p>Error loading content: {error.message}</p>
+        <button 
+          onClick={() => refetch()} 
+          className="mt-4 text-primary hover:underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }
 
   if (!socialContent?.length) {
-    console.log("No social content found in response");
     return (
       <div className="text-center py-8 text-muted-foreground">
         No content found. Start by sharing content to your ingest email!
@@ -63,7 +68,6 @@ const SocialContentList = () => {
     );
   }
 
-  console.log("Rendering social content:", socialContent);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {socialContent.map((content) => (
