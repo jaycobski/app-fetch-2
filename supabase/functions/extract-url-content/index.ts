@@ -7,7 +7,8 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  console.log("Extract content function called");
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -18,115 +19,77 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get unprocessed content
-    const { data: unprocessedContent, error: fetchError } = await supabaseClient
+    const { ingestId } = await req.json();
+    console.log("Processing ingest ID:", ingestId);
+
+    // Get the ingest record
+    const { data: ingest, error: ingestError } = await supabaseClient
       .from('social_content_ingests')
       .select('*')
-      .eq('processed', false)
-      .limit(10);
+      .eq('id', ingestId)
+      .single();
 
-    if (fetchError) {
-      console.error('Error fetching unprocessed content:', fetchError);
-      throw fetchError;
+    if (ingestError) {
+      console.error('Error fetching ingest:', ingestError);
+      throw ingestError;
     }
 
-    console.log(`Processing ${unprocessedContent?.length ?? 0} items`);
-
-    if (!unprocessedContent?.length) {
-      return new Response(
-        JSON.stringify({ message: 'No content to process' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!ingest) {
+      throw new Error('Ingest record not found');
     }
 
-    const processResults = await Promise.all(
-      unprocessedContent.map(async (content) => {
-        try {
-          console.log(`Processing content ID: ${content.id}`);
-          
-          let extractedContent = content.content_body;
-          let extractedTitle = content.content_title;
+    console.log("Found ingest record:", ingest);
 
-          // If there's a URL, try to fetch its content
-          if (content.original_url && !content.original_url.startsWith('mailto:')) {
-            console.log(`Fetching content from URL: ${content.original_url}`);
-            try {
-              const response = await fetch(content.original_url);
-              const html = await response.text();
-
-              // Basic content extraction
-              const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-              extractedTitle = titleMatch ? titleMatch[1] : content.content_title;
-
-              // Extract text content (basic implementation)
-              extractedContent = html
-                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-                .replace(/<[^>]+>/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-            } catch (error) {
-              console.error(`Error fetching URL content: ${error.message}`);
-              // Continue with original content if URL fetch fails
-            }
-          }
-
-          // Insert into content_items
-          const { data: contentItem, error: insertError } = await supabaseClient
-            .from('content_items')
-            .insert({
-              user_id: content.user_id,
-              source_type: content.source_type,
-              title: extractedTitle || 'Untitled Content',
-              content: extractedContent || content.content_body,
-              url: content.original_url,
-              author: content.original_author,
-              metadata: content.metadata,
-              source_created_at: content.source_created_at
-            })
-            .select()
-            .single();
-
-          if (insertError) {
-            console.error(`Error inserting content item: ${insertError.message}`);
-            throw insertError;
-          }
-
-          // Update the social_content_ingests record as processed
-          const { error: updateError } = await supabaseClient
-            .from('social_content_ingests')
-            .update({
-              processed: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', content.id);
-
-          if (updateError) {
-            console.error(`Error updating ingest status: ${updateError.message}`);
-            throw updateError;
-          }
-
-          return { id: content.id, success: true, contentItemId: contentItem.id };
-        } catch (error) {
-          console.error(`Error processing content ${content.id}:`, error);
-          
-          // Update the record with error information
-          await supabaseClient
-            .from('social_content_ingests')
-            .update({
-              processed: true,
-              error_message: error.message,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', content.id);
-
-          return { id: content.id, success: false, error: error.message };
-        }
+    // Insert into content_items
+    const { data: contentItem, error: insertError } = await supabaseClient
+      .from('content_items')
+      .insert({
+        user_id: ingest.user_id,
+        source_type: ingest.source_type,
+        title: ingest.content_title || 'Untitled Content',
+        content: ingest.content_body,
+        url: ingest.original_url,
+        author: ingest.original_author,
+        metadata: ingest.metadata,
+        source_created_at: ingest.source_created_at
       })
-    );
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error inserting content item:', insertError);
+      
+      // Update the ingest record with error
+      await supabaseClient
+        .from('social_content_ingests')
+        .update({
+          processed: true,
+          error_message: insertError.message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', ingestId);
+
+      throw insertError;
+    }
+
+    console.log("Created content item:", contentItem);
+
+    // Update the ingest record as processed
+    const { error: updateError } = await supabaseClient
+      .from('social_content_ingests')
+      .update({
+        processed: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ingestId);
+
+    if (updateError) {
+      console.error('Error updating ingest status:', updateError);
+      throw updateError;
+    }
 
     return new Response(
-      JSON.stringify({ success: true, results: processResults }),
+      JSON.stringify({ success: true, contentItem }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
