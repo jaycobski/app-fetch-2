@@ -42,12 +42,16 @@ serve(async (req: Request) => {
     }
 
     console.log('Found ingest record:', ingest.id);
+    console.log('Content body:', ingest.content_body);
 
-    // Extract URL from content
+    // Extract URL from content_body
     const content = ingest.content_body || '';
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = content.match(urlRegex);
     const firstUrl = urls?.[0];
+
+    console.log('Extracted URLs:', urls);
+    console.log('First URL:', firstUrl);
 
     if (!firstUrl) {
       console.log('No URL found in content');
@@ -69,12 +73,15 @@ serve(async (req: Request) => {
 
     try {
       // Fetch the content from the URL
+      console.log('Fetching content from URL:', firstUrl);
       const response = await fetch(firstUrl);
       const htmlContent = await response.text();
+      console.log('Successfully fetched HTML content, length:', htmlContent.length);
 
-      // Basic metadata extraction (you might want to use a proper HTML parser in production)
+      // Basic metadata extraction
       const titleMatch = htmlContent.match(/<title>(.*?)<\/title>/i);
       const title = titleMatch ? titleMatch[1] : null;
+      console.log('Extracted title:', title);
 
       // Update the record with the extracted URL and content
       const { error: updateError } = await supabaseClient
@@ -83,7 +90,8 @@ serve(async (req: Request) => {
           extracted_url: firstUrl,
           url_content: htmlContent,
           url_title: title,
-          processed: true
+          processed: true,
+          error_message: null
         })
         .eq('id', ingestId);
 
