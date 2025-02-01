@@ -26,6 +26,12 @@ interface CloudMailinEmail {
 // Helper function to create a safe metadata object
 const createSafeMetadata = (emailData: CloudMailinEmail) => {
   try {
+    console.log('Creating safe metadata from email data:', {
+      subject: emailData.headers.subject,
+      from: emailData.envelope.from,
+      to: emailData.envelope.recipients
+    });
+    
     const safeMetadata = {
       headers: {
         subject: String(emailData.headers.subject || ''),
@@ -43,6 +49,7 @@ const createSafeMetadata = (emailData: CloudMailinEmail) => {
     };
     
     JSON.stringify(safeMetadata); // Test serialization
+    console.log('Successfully created safe metadata');
     return safeMetadata;
   } catch (error) {
     console.error('Error creating safe metadata:', error);
@@ -58,6 +65,7 @@ const createSafeMetadata = (emailData: CloudMailinEmail) => {
 
 serve(async (req) => {
   console.log(`Received ${req.method} request to process-inbound-email`);
+  console.log('Request headers:', req.headers);
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -91,11 +99,15 @@ serve(async (req) => {
     );
 
     console.log('Parsing email data from request...');
-    const emailData: CloudMailinEmail = await req.json();
-    console.log('Received email data:', {
+    const rawBody = await req.text();
+    console.log('Raw request body:', rawBody);
+    
+    const emailData: CloudMailinEmail = JSON.parse(rawBody);
+    console.log('Parsed email data:', {
       to: emailData.envelope.recipients,
       from: emailData.envelope.from,
-      subject: emailData.headers.subject
+      subject: emailData.headers.subject,
+      contentLength: emailData.html?.length || emailData.plain?.length
     });
 
     const toEmail = emailData.envelope.recipients[0].toLowerCase().trim();
@@ -122,6 +134,11 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Found user for email:', {
+      userId: userIngestEmail.user_id,
+      emailAddress: userIngestEmail.email_address
+    });
 
     // Create safe metadata object
     const metadata = createSafeMetadata(emailData);
