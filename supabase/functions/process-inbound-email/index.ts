@@ -42,12 +42,10 @@ const createSafeMetadata = (emailData: CloudMailinEmail) => {
       }
     };
     
-    // Test that it can be properly serialized
-    JSON.stringify(safeMetadata);
+    JSON.stringify(safeMetadata); // Test serialization
     return safeMetadata;
   } catch (error) {
     console.error('Error creating safe metadata:', error);
-    // Return a minimal safe object if there's an error
     return {
       headers: {},
       envelope: {
@@ -59,18 +57,40 @@ const createSafeMetadata = (emailData: CloudMailinEmail) => {
 };
 
 serve(async (req) => {
-  console.log('Processing incoming email request');
+  console.log(`Received ${req.method} request to process-inbound-email`);
   
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Only allow POST requests for email processing
+  if (req.method !== 'POST') {
+    console.error('Invalid request method:', req.method);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Method not allowed', 
+        message: 'This endpoint only accepts POST requests from CloudMailin' 
+      }),
+      { 
+        status: 405, 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Allow': 'POST, OPTIONS'
+        } 
+      }
+    );
+  }
+
   try {
+    console.log('Creating Supabase client...');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    console.log('Parsing email data from request...');
     const emailData: CloudMailinEmail = await req.json();
     console.log('Received email data:', {
       to: emailData.envelope.recipients,
