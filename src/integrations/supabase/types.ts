@@ -508,6 +508,12 @@ export type Database = {
         }
         Returns: string
       }
+      test_url_extraction: {
+        Args: {
+          content: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
