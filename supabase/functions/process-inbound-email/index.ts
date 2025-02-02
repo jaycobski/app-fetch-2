@@ -144,9 +144,9 @@ serve(async (req) => {
     const metadata = createSafeMetadata(emailData);
     console.log('Safe metadata created:', metadata);
 
-    // Store in social_content_ingests table
+    // Store in ingest_content_feb table instead of social_content_ingests
     const { data: ingest, error: ingestError } = await supabaseClient
-      .from('social_content_ingests')
+      .from('ingest_content_feb')
       .insert({
         user_id: userIngestEmail.user_id,
         source_type: 'email',
