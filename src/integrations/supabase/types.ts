@@ -65,6 +65,33 @@ export type Database = {
           },
         ]
       }
+      function_logs: {
+        Row: {
+          error_message: string | null
+          executed_at: string | null
+          execution_time: unknown | null
+          function_name: string | null
+          id: number
+          result: string | null
+        }
+        Insert: {
+          error_message?: string | null
+          executed_at?: string | null
+          execution_time?: unknown | null
+          function_name?: string | null
+          id?: never
+          result?: string | null
+        }
+        Update: {
+          error_message?: string | null
+          executed_at?: string | null
+          execution_time?: unknown | null
+          function_name?: string | null
+          id?: never
+          result?: string | null
+        }
+        Relationships: []
+      }
       ingest_content_feb: {
         Row: {
           content_body: string | null
