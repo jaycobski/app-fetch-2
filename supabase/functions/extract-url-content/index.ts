@@ -71,23 +71,36 @@ const genericExtractor = async (url: string) => {
   console.log('[Generic Extractor] Starting extraction for URL:', url);
   try {
     const response = await fetch(url);
+    if (!response.ok) {
+      console.error('[Generic Extractor] Failed to fetch URL:', url, 'Status:', response.status);
+      throw new Error(`Failed to fetch URL: ${response.status}`);
+    }
+    
     const html = await response.text();
     console.log('[Generic Extractor] Fetched HTML content. Length:', html.length);
     
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
+    if (!doc) {
+      console.error('[Generic Extractor] Failed to parse HTML');
+      throw new Error('Failed to parse HTML');
+    }
     
     const title = doc.querySelector('title')?.textContent || '';
     const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
     
-    console.log('[Generic Extractor] Extraction completed:', {
-      titleLength: title.length,
-      descriptionLength: metaDescription.length
+    console.log('[Generic Extractor] Extracted metadata:', {
+      title,
+      metaDescription,
+      ogTitle,
+      ogDescription
     });
     
     return {
-      content: metaDescription,
-      title: title,
+      content: metaDescription || ogDescription || '',
+      title: title || ogTitle || '',
       platformSpecificData: { type: 'generic' }
     };
   } catch (error) {
@@ -98,8 +111,8 @@ const genericExtractor = async (url: string) => {
 
 serve(async (req: Request) => {
   console.log('[extract-url-content] Function called with method:', req.method);
-  console.log('[extract-url-content] Request headers:', Object.fromEntries(req.headers.entries()));
 
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -109,6 +122,11 @@ serve(async (req: Request) => {
     console.log('[extract-url-content] Request body:', body);
     
     const { ingestId } = body as RequestBody;
+    if (!ingestId) {
+      console.error('[extract-url-content] No ingestId provided in request body');
+      throw new Error('No ingestId provided');
+    }
+    
     console.log('[extract-url-content] Processing ingest ID:', ingestId);
 
     const supabaseClient = createClient(
@@ -126,13 +144,17 @@ serve(async (req: Request) => {
 
     if (fetchError) {
       console.error('[extract-url-content] Error fetching ingest:', fetchError);
+      throw new Error(`Ingest not found: ${fetchError.message}`);
+    }
+
+    if (!ingest) {
+      console.error('[extract-url-content] No ingest found with ID:', ingestId);
       throw new Error('Ingest not found');
     }
 
     console.log('[extract-url-content] Found ingest record:', {
       id: ingest.id,
-      contentLength: ingest.content_body?.length || 0,
-      contentBody: ingest.content_body
+      contentBody: ingest.content_body?.substring(0, 100) + '...' // Log first 100 chars
     });
 
     const urlRegex = /(https?:\/\/[^\s]+)/g;
