@@ -71,6 +71,7 @@ export type Database = {
           content_title: string | null
           created_at: string | null
           error_message: string | null
+          extracted_post_URL: string | null
           id: string
           metadata: Json | null
           original_author: string | null
@@ -87,6 +88,7 @@ export type Database = {
           content_title?: string | null
           created_at?: string | null
           error_message?: string | null
+          extracted_post_URL?: string | null
           id?: string
           metadata?: Json | null
           original_author?: string | null
@@ -103,6 +105,7 @@ export type Database = {
           content_title?: string | null
           created_at?: string | null
           error_message?: string | null
+          extracted_post_URL?: string | null
           id?: string
           metadata?: Json | null
           original_author?: string | null
@@ -499,7 +502,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      extract_url_from_email: {
+        Args: {
+          email_body: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
