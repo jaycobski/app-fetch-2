@@ -17,34 +17,35 @@ const extractors = {
     matchDomain: (url: string) => url.includes('linkedin.com'),
     extract: async (url: string) => {
       console.log('[LinkedIn Extractor] Starting extraction for URL:', url);
-      const response = await fetch(url);
-      const html = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      
-      const title = doc.querySelector('title')?.textContent || '';
-      const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
-      const content = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-      const publishedAt = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
-      
-      return { title, author, content, publishedAt };
-    }
-  },
-  medium: {
-    matchDomain: (url: string) => url.includes('medium.com'),
-    extract: async (url: string) => {
-      console.log('[Medium Extractor] Starting extraction for URL:', url);
-      const response = await fetch(url);
-      const html = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      
-      const title = doc.querySelector('h1')?.textContent || '';
-      const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
-      const content = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-      const publishedAt = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
-      
-      return { title, author, content, publishedAt };
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch LinkedIn content: ${response.status}`);
+        }
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        
+        // LinkedIn specific meta tags
+        const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || 
+                     doc.querySelector('title')?.textContent || '';
+        const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || 
+                          doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+        const author = doc.querySelector('meta[property="article:author"]')?.getAttribute('content') || '';
+        const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
+        
+        console.log('[LinkedIn Extractor] Extracted content:', { title, description, author, publishedTime });
+        
+        return { 
+          title, 
+          content: description, 
+          author,
+          publishedAt: publishedTime ? new Date(publishedTime) : null
+        };
+      } catch (error) {
+        console.error('[LinkedIn Extractor] Error:', error);
+        throw error;
+      }
     }
   }
 };
@@ -58,18 +59,18 @@ const genericExtractor = async (url: string) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
     
-    const title = doc.querySelector('title')?.textContent || '';
-    const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
-    const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
+    const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || 
+                 doc.querySelector('title')?.textContent || '';
+    const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || 
+                      doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
     const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
-    const publishedAt = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
+    const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
     
     return {
-      title: title || ogTitle || '',
-      content: metaDescription || ogDescription || '',
+      title,
+      content: description,
       author,
-      publishedAt
+      publishedAt: publishedTime ? new Date(publishedTime) : null
     };
   } catch (error) {
     console.error('[Generic Extractor] Error:', error);
@@ -78,75 +79,57 @@ const genericExtractor = async (url: string) => {
 };
 
 serve(async (req: Request) => {
-  console.log('[extract-url-content] Function called with method:', req.method);
+  console.log('[extract-url-content] Function called');
 
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const body = await req.json();
-    console.log('[extract-url-content] Request body:', body);
-    
     const { ingestId } = body as RequestBody;
+    
     if (!ingestId) {
-      console.error('[extract-url-content] No ingestId provided in request body');
       throw new Error('No ingestId provided');
     }
     
-    console.log('[extract-url-content] Processing ingest ID:', ingestId);
-
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
-    console.log('[extract-url-content] Supabase client created');
 
     // Fetch the ingest record
     const { data: ingest, error: fetchError } = await supabaseClient
-      .from('ingest_content_feb')
+      .from('social_content_ingests')
       .select('*')
       .eq('id', ingestId)
       .single();
 
-    if (fetchError) {
-      console.error('[extract-url-content] Error fetching ingest:', fetchError);
-      throw new Error(`Ingest not found: ${fetchError.message}`);
+    if (fetchError || !ingest) {
+      throw new Error(fetchError?.message || 'Ingest not found');
     }
 
-    if (!ingest) {
-      console.error('[extract-url-content] No ingest found with ID:', ingestId);
-      throw new Error('Ingest not found');
-    }
-
-    console.log('[extract-url-content] Found ingest record:', {
-      id: ingest.id,
-      url: ingest.original_url
-    });
-
-    if (!ingest.original_url) {
-      console.error('[extract-url-content] No URL found in ingest');
-      throw new Error('No URL found in ingest');
+    if (!ingest.extracted_url) {
+      throw new Error('No URL to process');
     }
 
     // Determine which extractor to use
     const platform = Object.keys(extractors).find(p => 
-      extractors[p].matchDomain(ingest.original_url)
+      extractors[p].matchDomain(ingest.extracted_url)
     );
     
     let extractedContent;
     if (platform) {
       console.log(`[extract-url-content] Using ${platform} extractor`);
-      extractedContent = await extractors[platform].extract(ingest.original_url);
+      extractedContent = await extractors[platform].extract(ingest.extracted_url);
     } else {
       console.log('[extract-url-content] Using generic extractor');
-      extractedContent = await genericExtractor(ingest.original_url);
+      extractedContent = await genericExtractor(ingest.extracted_url);
     }
 
-    // Update the ingest record with extracted content
+    // Update the ingest record
     const { error: updateError } = await supabaseClient
-      .from('ingest_content_feb')
+      .from('social_content_ingests')
       .update({
         url_title: extractedContent.title,
         url_content: extractedContent.content,
@@ -159,11 +142,8 @@ serve(async (req: Request) => {
       .eq('id', ingestId);
 
     if (updateError) {
-      console.error('[extract-url-content] Error updating ingest:', updateError);
       throw updateError;
     }
-
-    console.log('[extract-url-content] Successfully processed URL for ingest:', ingestId);
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -171,9 +151,8 @@ serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error('[extract-url-content] Error in function:', error);
+    console.error('[extract-url-content] Error:', error);
     
-    // Try to update the ingest record with the error
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
@@ -181,14 +160,14 @@ serve(async (req: Request) => {
       );
       
       await supabaseClient
-        .from('ingest_content_feb')
+        .from('social_content_ingests')
         .update({
           processed: true,
-          error_message: `Error extracting URL content: ${error.message}`
+          error_message: `Error extracting content: ${error.message}`
         })
         .eq('id', body.ingestId);
     } catch (updateError) {
-      console.error('[extract-url-content] Error updating ingest with error state:', updateError);
+      console.error('[extract-url-content] Error updating error state:', updateError);
     }
     
     return new Response(
