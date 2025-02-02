@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,30 +11,55 @@ interface RequestBody {
   ingestId: string;
 }
 
-// Enhanced URL extraction function
-const extractUrls = (text: string): string[] => {
-  // Match URLs that start with http/https or www
-  const urlRegex = /(?:https?:\/\/)?(?:www\.)?([^\s<]+)/g;
-  const matches = text.match(urlRegex) || [];
+// Enhanced URL extraction function that handles both HTML and plain text
+const extractUrls = (content: string): string[] => {
+  console.log('[URL Extractor] Starting extraction from content length:', content.length);
   
-  // Filter and clean up URLs
-  return matches
-    .map(url => {
-      // Ensure URLs start with http/https
-      if (!url.startsWith('http')) {
-        url = 'https://' + url;
+  const urls: Set<string> = new Set();
+  
+  try {
+    // First try to parse as HTML to extract href attributes
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'text/html');
+    
+    if (doc) {
+      // Extract URLs from href attributes
+      const links = doc.getElementsByTagName('a');
+      for (const link of links) {
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('http')) {
+          urls.add(href);
+        }
       }
-      // Remove any trailing punctuation
-      return url.replace(/[.,;!]$/, '');
-    })
-    .filter(url => {
-      try {
-        new URL(url);
-        return true;
-      } catch {
-        return false;
-      }
-    });
+      console.log('[URL Extractor] Found URLs from HTML:', urls.size);
+    }
+  } catch (error) {
+    console.error('[URL Extractor] HTML parsing error:', error);
+  }
+  
+  // Also look for URLs in plain text
+  const urlRegex = /(?:https?:\/\/)?(?:www\.)?([^\s<]+\.[^\s<]+)/g;
+  const matches = content.match(urlRegex) || [];
+  
+  for (const match of matches) {
+    let url = match;
+    // Ensure URLs start with http/https
+    if (!url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    // Remove any trailing punctuation
+    url = url.replace(/[.,;!]$/, '');
+    
+    try {
+      new URL(url); // Validate URL
+      urls.add(url);
+    } catch {
+      console.log('[URL Extractor] Invalid URL found:', url);
+    }
+  }
+  
+  console.log('[URL Extractor] Total unique URLs found:', urls.size);
+  return Array.from(urls);
 };
 
 serve(async (req: Request) => {
@@ -81,7 +107,7 @@ serve(async (req: Request) => {
 
     console.log('[extract-urls-from-content] Found ingest record:', {
       id: ingest.id,
-      content: ingest.content_body?.substring(0, 100) // Log first 100 chars
+      contentLength: ingest.content_body?.length
     });
 
     if (!ingest.content_body) {
