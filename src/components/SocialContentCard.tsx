@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Mail, MessageSquare, Clock, AlertCircle, Globe } from "lucide-react";
+import { ExternalLink, Mail, MessageSquare, Clock, AlertCircle, Globe, Linkedin } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface SocialContentCardProps {
@@ -20,6 +20,8 @@ interface SocialContentCardProps {
     url_author?: string | null;
     url_published_at?: string | null;
     source_platform?: string | null;
+    platform_post_id?: string | null;
+    platform_specific_data?: Record<string, any> | null;
   };
 }
 
@@ -29,7 +31,7 @@ const SocialContentCard = ({ content }: SocialContentCardProps) => {
       case 'email':
         return <Mail className="h-4 w-4" />;
       case 'linkedin':
-        return <Globe className="h-4 w-4" />;
+        return <Linkedin className="h-4 w-4" />;
       default:
         return <MessageSquare className="h-4 w-4" />;
     }

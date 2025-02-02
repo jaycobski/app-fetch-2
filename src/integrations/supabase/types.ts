@@ -103,11 +103,18 @@ export type Database = {
           metadata: Json | null
           original_author: string | null
           original_url: string | null
+          platform_post_id: string | null
+          platform_specific_data: Json | null
           post_url: string | null
           processed: boolean | null
           source_created_at: string | null
+          source_platform: string | null
           source_type: string
           updated_at: string | null
+          url_author: string | null
+          url_content: string | null
+          url_published_at: string | null
+          url_title: string | null
           user_id: string
         }
         Insert: {
@@ -120,11 +127,18 @@ export type Database = {
           metadata?: Json | null
           original_author?: string | null
           original_url?: string | null
+          platform_post_id?: string | null
+          platform_specific_data?: Json | null
           post_url?: string | null
           processed?: boolean | null
           source_created_at?: string | null
+          source_platform?: string | null
           source_type: string
           updated_at?: string | null
+          url_author?: string | null
+          url_content?: string | null
+          url_published_at?: string | null
+          url_title?: string | null
           user_id: string
         }
         Update: {
@@ -137,11 +151,18 @@ export type Database = {
           metadata?: Json | null
           original_author?: string | null
           original_url?: string | null
+          platform_post_id?: string | null
+          platform_specific_data?: Json | null
           post_url?: string | null
           processed?: boolean | null
           source_created_at?: string | null
+          source_platform?: string | null
           source_type?: string
           updated_at?: string | null
+          url_author?: string | null
+          url_content?: string | null
+          url_published_at?: string | null
+          url_title?: string | null
           user_id?: string
         }
         Relationships: [

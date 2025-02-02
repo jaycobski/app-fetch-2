@@ -19,7 +19,7 @@ const SocialContentList = () => {
       console.log("Authenticated user ID:", session.session.user.id);
       
       const { data, error } = await supabase
-        .from('social_content_ingests')
+        .from('ingest_content_feb')
         .select('*')
         .eq('user_id', session.session.user.id)
         .order('created_at', { ascending: false });
