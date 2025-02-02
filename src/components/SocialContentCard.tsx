@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Mail, MessageSquare, Clock, AlertCircle, Globe, Linkedin } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { Json } from "@/integrations/supabase/types";
 
 interface SocialContentCardProps {
   content: {
@@ -21,7 +22,7 @@ interface SocialContentCardProps {
     url_published_at?: string | null;
     source_platform?: string | null;
     platform_post_id?: string | null;
-    platform_specific_data?: Record<string, any> | null;
+    platform_specific_data?: Json | null;
   };
 }
 
