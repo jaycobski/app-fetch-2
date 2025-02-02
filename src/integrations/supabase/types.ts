@@ -535,6 +535,14 @@ export type Database = {
         }
         Returns: string
       }
+      log_function_execution: {
+        Args: {
+          p_function_name: string
+          p_result?: string
+          p_error_message?: string
+        }
+        Returns: undefined
+      }
       test_url_extraction: {
         Args: {
           content: string
