@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Mail, MessageSquare, Clock, AlertCircle } from "lucide-react";
+import { ExternalLink, Mail, MessageSquare, Clock, AlertCircle, Globe } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface SocialContentCardProps {
@@ -15,6 +15,11 @@ interface SocialContentCardProps {
     created_at: string;
     processed: boolean;
     error_message?: string | null;
+    url_title?: string | null;
+    url_content?: string | null;
+    url_author?: string | null;
+    url_published_at?: string | null;
+    source_platform?: string | null;
   };
 }
 
@@ -23,6 +28,8 @@ const SocialContentCard = ({ content }: SocialContentCardProps) => {
     switch (source.toLowerCase()) {
       case 'email':
         return <Mail className="h-4 w-4" />;
+      case 'linkedin':
+        return <Globe className="h-4 w-4" />;
       default:
         return <MessageSquare className="h-4 w-4" />;
     }
@@ -33,12 +40,12 @@ const SocialContentCard = ({ content }: SocialContentCardProps) => {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div className="flex items-center space-x-2">
           <CardTitle className="text-lg font-medium">
-            {content.content_title || "Untitled Content"}
+            {content.url_title || content.content_title || "Untitled Content"}
           </CardTitle>
           <Badge variant={content.processed ? "default" : "secondary"} className="ml-2">
             <span className="flex items-center gap-1">
-              {getSourceIcon(content.source_type)}
-              {content.source_type}
+              {getSourceIcon(content.source_platform || content.source_type)}
+              {content.source_platform || content.source_type}
             </span>
           </Badge>
         </div>
@@ -52,24 +59,26 @@ const SocialContentCard = ({ content }: SocialContentCardProps) => {
             </div>
           )}
           
-          {content.content_body && (
+          {(content.url_content || content.content_body) && (
             <p className="text-sm text-muted-foreground line-clamp-3">
-              {content.content_body}
+              {content.url_content || content.content_body}
             </p>
           )}
           
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            {content.original_author && (
+            {(content.url_author || content.original_author) && (
               <span className="flex items-center gap-1">
-                By: {content.original_author}
+                By: {content.url_author || content.original_author}
               </span>
             )}
             
             <span className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              {content.source_created_at 
-                ? formatDistanceToNow(new Date(content.source_created_at), { addSuffix: true })
-                : formatDistanceToNow(new Date(content.created_at), { addSuffix: true })}
+              {content.url_published_at 
+                ? formatDistanceToNow(new Date(content.url_published_at), { addSuffix: true })
+                : content.source_created_at 
+                  ? formatDistanceToNow(new Date(content.source_created_at), { addSuffix: true })
+                  : formatDistanceToNow(new Date(content.created_at), { addSuffix: true })}
             </span>
             
             {content.original_url && (
