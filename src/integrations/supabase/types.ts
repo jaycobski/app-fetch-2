@@ -65,6 +65,65 @@ export type Database = {
           },
         ]
       }
+      ingest_content_feb: {
+        Row: {
+          content_body: string | null
+          content_title: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          original_author: string | null
+          original_url: string | null
+          post_url: string | null
+          processed: boolean | null
+          source_created_at: string | null
+          source_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content_body?: string | null
+          content_title?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          original_author?: string | null
+          original_url?: string | null
+          post_url?: string | null
+          processed?: boolean | null
+          source_created_at?: string | null
+          source_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content_body?: string | null
+          content_title?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          original_author?: string | null
+          original_url?: string | null
+          post_url?: string | null
+          processed?: boolean | null
+          source_created_at?: string | null
+          source_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingest_content_feb_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       perplexity_completions: {
         Row: {
           completion: string | null
