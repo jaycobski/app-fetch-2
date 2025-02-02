@@ -20,10 +20,13 @@ const extractors = {
       return match ? match[1] : null;
     },
     extract: async (url: string) => {
+      console.log('Starting LinkedIn extraction for URL:', url);
       const postId = extractors.linkedin.extractPostId(url);
       if (!postId) throw new Error('Invalid LinkedIn URL');
 
       const oembedUrl = `https://www.linkedin.com/embed/feed/update/urn:li:activity:${postId}`;
+      console.log('Fetching LinkedIn oembed URL:', oembedUrl);
+      
       const response = await fetch(oembedUrl);
       const html = await response.text();
       
@@ -31,6 +34,7 @@ const extractors = {
       const doc = parser.parseFromString(html, "text/html");
       const content = doc.querySelector('.post-text')?.textContent?.trim() || '';
       
+      console.log('LinkedIn extraction completed. Content length:', content.length);
       return {
         content,
         platformPostId: postId,
@@ -61,14 +65,22 @@ const extractors = {
 
 // Generic fallback extractor for unknown platforms
 const genericExtractor = async (url: string) => {
+  console.log('Starting generic extraction for URL:', url);
   try {
     const response = await fetch(url);
     const html = await response.text();
+    console.log('Fetched HTML content. Length:', html.length);
+    
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
     
     const title = doc.querySelector('title')?.textContent || '';
     const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    
+    console.log('Generic extraction completed:', {
+      titleLength: title.length,
+      descriptionLength: metaDescription.length
+    });
     
     return {
       content: metaDescription,
@@ -92,14 +104,17 @@ const determineContentSource = (url: string): string => {
 };
 
 serve(async (req: Request) => {
-  console.log('Extract URL content function called');
+  console.log('Extract URL content function called with method:', req.method);
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { ingestId } = await req.json() as RequestBody;
+    const body = await req.json();
+    console.log('Request body:', body);
+    
+    const { ingestId } = body as RequestBody;
     console.log('Processing ingest ID:', ingestId);
 
     const supabaseClient = createClient(
@@ -107,19 +122,22 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    console.log('Fetching ingest record...');
     const { data: ingest, error: fetchError } = await supabaseClient
       .from('social_content_ingests')
       .select('*')
       .eq('id', ingestId)
       .single();
 
-    if (fetchError || !ingest) {
+    if (fetchError) {
       console.error('Error fetching ingest:', fetchError);
       throw new Error('Ingest not found');
     }
 
-    console.log('Found ingest record:', ingest.id);
-    console.log('Content body:', ingest.content_body);
+    console.log('Found ingest record:', {
+      id: ingest.id,
+      contentLength: ingest.content_body?.length || 0
+    });
 
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = ingest.content_body?.match(urlRegex) || [];
@@ -127,13 +145,17 @@ serve(async (req: Request) => {
 
     if (!firstUrl) {
       console.log('No URL found in content');
-      await supabaseClient
+      const { error: updateError } = await supabaseClient
         .from('social_content_ingests')
         .update({
           processed: true,
           error_message: 'No URL found in content'
         })
         .eq('id', ingestId);
+
+      if (updateError) {
+        console.error('Error updating ingest with no URL:', updateError);
+      }
 
       return new Response(
         JSON.stringify({ message: 'No URL found in content' }),
@@ -149,10 +171,14 @@ serve(async (req: Request) => {
       let extractedContent;
       
       if (sourcePlatform !== 'generic' && extractors[sourcePlatform]) {
+        console.log('Using platform-specific extractor for:', sourcePlatform);
         extractedContent = await extractors[sourcePlatform].extract(firstUrl);
       } else {
+        console.log('Using generic extractor');
         extractedContent = await genericExtractor(firstUrl);
       }
+
+      console.log('Content extracted successfully');
 
       const updateData = {
         extracted_url: firstUrl,
@@ -165,13 +191,14 @@ serve(async (req: Request) => {
         platform_specific_data: extractedContent.platformSpecificData
       };
 
+      console.log('Updating ingest with extracted content...');
       const { error: updateError } = await supabaseClient
         .from('social_content_ingests')
         .update(updateData)
         .eq('id', ingestId);
 
       if (updateError) {
-        console.error('Error updating ingest:', updateError);
+        console.error('Error updating ingest with content:', updateError);
         throw updateError;
       }
 
@@ -185,7 +212,7 @@ serve(async (req: Request) => {
     } catch (error) {
       console.error('Error extracting content:', error);
       
-      await supabaseClient
+      const { error: updateError } = await supabaseClient
         .from('social_content_ingests')
         .update({
           extracted_url: firstUrl,
@@ -194,6 +221,10 @@ serve(async (req: Request) => {
           source_platform: sourcePlatform
         })
         .eq('id', ingestId);
+
+      if (updateError) {
+        console.error('Error updating ingest with error state:', updateError);
+      }
 
       throw error;
     }
