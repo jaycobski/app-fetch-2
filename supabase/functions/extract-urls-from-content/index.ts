@@ -10,10 +10,30 @@ interface RequestBody {
   ingestId: string;
 }
 
-// Function to extract URLs from text content
+// Enhanced URL extraction function
 const extractUrls = (text: string): string[] => {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  return text.match(urlRegex) || [];
+  // Match URLs that start with http/https or www
+  const urlRegex = /(?:https?:\/\/)?(?:www\.)?([^\s<]+)/g;
+  const matches = text.match(urlRegex) || [];
+  
+  // Filter and clean up URLs
+  return matches
+    .map(url => {
+      // Ensure URLs start with http/https
+      if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
+      // Remove any trailing punctuation
+      return url.replace(/[.,;!]$/, '');
+    })
+    .filter(url => {
+      try {
+        new URL(url);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 };
 
 serve(async (req: Request) => {
@@ -69,7 +89,7 @@ serve(async (req: Request) => {
       throw new Error('No content body found in ingest');
     }
 
-    // Extract URLs from content
+    // Extract URLs from content with enhanced function
     const urls = extractUrls(ingest.content_body);
     console.log('[extract-urls-from-content] Extracted URLs:', urls);
 
@@ -127,7 +147,7 @@ serve(async (req: Request) => {
           processed: true,
           error_message: `Error extracting URLs: ${error.message}`
         })
-        .eq('id', body.ingestId);
+        .eq('id', (body as RequestBody).ingestId);
     } catch (updateError) {
       console.error('[extract-urls-from-content] Error updating ingest with error state:', updateError);
     }
