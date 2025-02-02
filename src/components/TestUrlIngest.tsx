@@ -15,7 +15,7 @@ const TestUrlIngest = () => {
         return;
       }
 
-      const testContent = `<div dir="ltr"><a href="https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4?utm_source=share&utm_medium=member_desktop">https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4?utm_source=share&utm_medium=member_desktop</a></div>`;
+      const testContent = `<div dir="ltr"><a href="https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4">https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4</a></div>`;
 
       const { data, error } = await supabase
         .from('social_content_ingests')
@@ -24,6 +24,7 @@ const TestUrlIngest = () => {
             user_id: session.session.user.id,
             source_type: 'test',
             content_body: testContent,
+            processed: false
           }
         ])
         .select()
