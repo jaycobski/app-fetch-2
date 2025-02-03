@@ -21,7 +21,7 @@ export const useUrlIngest = () => {
         .insert([
           {
             user_id: session.session.user.id,
-            source_type: 'test',
+            source_type: 'email', // Changed from 'test' to 'email' as it's a valid source type
             content_body: testContent,
             processed: false
           }
