@@ -32,7 +32,7 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
           `https://umugzdepvpezfmnjowcn.supabase.co/functions/v1/process-url-content?url=${encodeURIComponent(postUrl)}`,
           {
             headers: {
-              'Authorization': `Bearer ${process.env.VITE_SUPABASE_ANON_KEY}`
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
             }
           }
         );
@@ -53,8 +53,12 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
 
     fetchPostContent();
 
+    // Cleanup function
     return () => {
-      document.body.removeChild(script);
+      const existingScript = document.querySelector('script[src="https://embed.reddit.com/widgets.js"]');
+      if (existingScript && existingScript.parentNode) {
+        existingScript.parentNode.removeChild(existingScript);
+      }
     };
   }, [postUrl]);
 
