@@ -12,13 +12,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      console.error('[process-url-content] No authorization header');
-      throw new Error('No authorization header');
-    }
-
     const { ingestId } = await req.json();
     console.log('[process-url-content] Processing ingest ID:', ingestId);
 
@@ -97,7 +90,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        status: 401,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
