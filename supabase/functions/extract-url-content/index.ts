@@ -11,92 +11,81 @@ interface RequestBody {
   ingestId: string;
 }
 
-// Platform-specific extractors
-const extractors = {
-  linkedin: {
-    matchDomain: (url: string) => url.includes('linkedin.com'),
-    extract: async (url: string) => {
-      console.log('[LinkedIn Extractor] Starting extraction for URL:', url);
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch LinkedIn content: ${response.status}`);
-        }
-        const html = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-        
-        // LinkedIn specific meta tags
-        const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || 
-                     doc.querySelector('title')?.textContent || '';
-        const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || 
-                          doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-        const author = doc.querySelector('meta[property="article:author"]')?.getAttribute('content') || '';
-        const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
-        
-        console.log('[LinkedIn Extractor] Extracted content:', { title, description, author, publishedTime });
-        
-        return { 
-          title, 
-          content: description, 
-          author,
-          publishedAt: publishedTime ? new Date(publishedTime) : null
-        };
-      } catch (error) {
-        console.error('[LinkedIn Extractor] Error:', error);
-        throw error;
-      }
-    }
-  }
-};
-
-// Generic fallback extractor
-const genericExtractor = async (url: string) => {
-  console.log('[Generic Extractor] Starting extraction for URL:', url);
+// Function to extract content from a URL
+const extractUrlContent = async (url: string) => {
+  console.log('[URL Content Extractor] Starting extraction for URL:', url);
+  
   try {
     const response = await fetch(url);
+    if (!response.ok) {
+      console.error('[URL Content Extractor] Failed to fetch URL:', url, 'Status:', response.status);
+      throw new Error(`Failed to fetch URL: ${response.status}`);
+    }
+    
     const html = await response.text();
+    console.log('[URL Content Extractor] Fetched HTML content. Length:', html.length);
+    
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
+    if (!doc) {
+      console.error('[URL Content Extractor] Failed to parse HTML');
+      throw new Error('Failed to parse HTML');
+    }
     
-    const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || 
-                 doc.querySelector('title')?.textContent || '';
-    const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || 
-                      doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    // Extract metadata
+    const title = doc.querySelector('title')?.textContent || '';
+    const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
     const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
     const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
     
-    return {
+    console.log('[URL Content Extractor] Extracted metadata:', {
       title,
-      content: description,
+      metaDescription,
+      ogTitle,
+      ogDescription,
+      author,
+      publishedTime
+    });
+    
+    return {
+      title: ogTitle || title,
+      content: ogDescription || metaDescription,
       author,
       publishedAt: publishedTime ? new Date(publishedTime) : null
     };
   } catch (error) {
-    console.error('[Generic Extractor] Error:', error);
+    console.error('[URL Content Extractor] Error:', error);
     throw error;
   }
 };
 
 serve(async (req: Request) => {
-  console.log('[extract-url-content] Function called');
+  console.log('[extract-url-content] Function called with method:', req.method);
 
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const body = await req.json();
-    const { ingestId } = body as RequestBody;
+    console.log('[extract-url-content] Request body:', body);
     
+    const { ingestId } = body as RequestBody;
     if (!ingestId) {
+      console.error('[extract-url-content] No ingestId provided in request body');
       throw new Error('No ingestId provided');
     }
     
+    console.log('[extract-url-content] Processing ingest ID:', ingestId);
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+    console.log('[extract-url-content] Supabase client created');
 
     // Fetch the ingest record
     const { data: ingest, error: fetchError } = await supabaseClient
@@ -105,29 +94,31 @@ serve(async (req: Request) => {
       .eq('id', ingestId)
       .single();
 
-    if (fetchError || !ingest) {
-      throw new Error(fetchError?.message || 'Ingest not found');
+    if (fetchError) {
+      console.error('[extract-url-content] Error fetching ingest:', fetchError);
+      throw new Error(`Ingest not found: ${fetchError.message}`);
+    }
+
+    if (!ingest) {
+      console.error('[extract-url-content] No ingest found with ID:', ingestId);
+      throw new Error('Ingest not found');
     }
 
     if (!ingest.original_url) {
-      throw new Error('No URL to process');
+      console.error('[extract-url-content] No URL found in ingest');
+      throw new Error('No URL found in ingest');
     }
 
-    // Determine which extractor to use
-    const platform = Object.keys(extractors).find(p => 
-      extractors[p].matchDomain(ingest.original_url)
-    );
-    
-    let extractedContent;
-    if (platform) {
-      console.log(`[extract-url-content] Using ${platform} extractor`);
-      extractedContent = await extractors[platform].extract(ingest.original_url);
-    } else {
-      console.log('[extract-url-content] Using generic extractor');
-      extractedContent = await genericExtractor(ingest.original_url);
-    }
+    console.log('[extract-url-content] Found ingest record:', {
+      id: ingest.id,
+      url: ingest.original_url
+    });
 
-    // Update the ingest record
+    // Extract content from URL
+    const extractedContent = await extractUrlContent(ingest.original_url);
+    console.log('[extract-url-content] Content extracted:', extractedContent);
+
+    // Update the ingest record with extracted content
     const { error: updateError } = await supabaseClient
       .from('ingest_content_feb')
       .update({
@@ -135,15 +126,17 @@ serve(async (req: Request) => {
         url_content: extractedContent.content,
         url_author: extractedContent.author,
         url_published_at: extractedContent.publishedAt,
-        source_platform: platform || 'generic',
         processed: true,
         error_message: null
       })
       .eq('id', ingestId);
 
     if (updateError) {
+      console.error('[extract-url-content] Error updating ingest:', updateError);
       throw updateError;
     }
+
+    console.log('[extract-url-content] Successfully processed URL for ingest:', ingestId);
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -151,8 +144,9 @@ serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error('[extract-url-content] Error:', error);
+    console.error('[extract-url-content] Error in function:', error);
     
+    // Try to update the ingest record with the error
     try {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
@@ -163,11 +157,11 @@ serve(async (req: Request) => {
         .from('ingest_content_feb')
         .update({
           processed: true,
-          error_message: `Error extracting content: ${error.message}`
+          error_message: `Error processing URL: ${error.message}`
         })
-        .eq('id', body.ingestId);
+        .eq('id', (body as RequestBody).ingestId);
     } catch (updateError) {
-      console.error('[extract-url-content] Error updating error state:', updateError);
+      console.error('[extract-url-content] Error updating ingest with error state:', updateError);
     }
     
     return new Response(

@@ -1,4 +1,1 @@
 project_id = "umugzdepvpezfmnjowcn"
-
-[functions.extract-url-content]
-verify_jwt = false
