@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Link2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import RedditEmbed from "@/components/embeds/RedditEmbed";
 
 const EmbedsPage = () => {
   const [url, setUrl] = useState("");
@@ -61,7 +62,7 @@ const EmbedsPage = () => {
       <div className="mt-8">
         <h1 className="text-2xl font-bold mb-6">Embed Content</h1>
         
-        <div className="max-w-2xl">
+        <div className="max-w-2xl mb-8">
           <form onSubmit={handleSubmit} className="flex gap-4 items-center">
             <div className="flex-1">
               <Input
@@ -78,6 +79,14 @@ const EmbedsPage = () => {
               Embed
             </Button>
           </form>
+        </div>
+
+        <div className="max-w-3xl">
+          <h2 className="text-xl font-semibold mb-4">Example Reddit Embed</h2>
+          <RedditEmbed 
+            postUrl="https://www.reddit.com/r/microsaas/comments/1igkuyb/launched_my_first_app_but_struggling_to_get/" 
+            height={410}
+          />
         </div>
       </div>
     </div>
