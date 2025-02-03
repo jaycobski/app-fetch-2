@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,7 +32,7 @@ serve(async (req: Request) => {
 
     // Fetch the ingest record
     const { data: ingest, error: fetchError } = await supabaseClient
-      .from('social_content_ingests')
+      .from('ingest_content_feb')
       .select('*')
       .eq('id', ingestId)
       .single();
@@ -42,27 +41,37 @@ serve(async (req: Request) => {
       throw new Error(fetchError?.message || 'Ingest not found');
     }
 
-    if (!ingest.extracted_url) {
+    if (!ingest.original_url) {
       throw new Error('No URL to process');
     }
 
-    console.log('[extract-linkedin-content] Processing LinkedIn URL:', ingest.extracted_url);
+    console.log('[extract-linkedin-content] Fetching LinkedIn content from:', ingest.original_url);
 
-    // Update the record with basic information we can determine from the URL
-    const urlParts = ingest.extracted_url.split('/');
+    // Make a simple GET request to the LinkedIn post
+    const response = await fetch(ingest.original_url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch LinkedIn content: ${response.status}`);
+    }
+
+    const content = await response.text();
+    console.log('[extract-linkedin-content] Fetched content length:', content.length);
+
+    // Extract post information from the URL
+    const urlParts = ingest.original_url.split('/');
     const authorUsername = urlParts[4] || 'unknown';
     const postTitle = urlParts[5] || 'LinkedIn Post';
-    
-    // Since we can't access LinkedIn content directly, we'll store what we can
+
+    // Update the ingest record with the fetched content
     const { error: updateError } = await supabaseClient
-      .from('social_content_ingests')
+      .from('ingest_content_feb')
       .update({
-        url_title: `LinkedIn post by ${authorUsername}`,
-        url_content: `This content is from LinkedIn and requires authentication to view. Original URL: ${ingest.extracted_url}`,
+        url_title: postTitle,
+        url_content: content,
         url_author: authorUsername,
         source_platform: 'linkedin',
         processed: true,
-        error_message: 'LinkedIn content requires authentication to access',
+        error_message: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', ingestId);
@@ -70,6 +79,8 @@ serve(async (req: Request) => {
     if (updateError) {
       throw updateError;
     }
+
+    console.log('[extract-linkedin-content] Successfully processed LinkedIn content for ingest:', ingestId);
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -86,7 +97,7 @@ serve(async (req: Request) => {
       );
       
       await supabaseClient
-        .from('social_content_ingests')
+        .from('ingest_content_feb')
         .update({
           processed: true,
           error_message: `Error extracting LinkedIn content: ${error.message}`,
