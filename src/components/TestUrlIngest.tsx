@@ -15,11 +15,13 @@ const TestUrlIngest = () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) return null;
       
+      console.log('Fetching latest ingest for user:', session.session.user.id);
+      
       const { data, error } = await supabase
-        .from('social_content_ingests')
+        .from('ingest_content_feb')  // Changed back to ingest_content_feb
         .select('*')
         .eq('user_id', session.session.user.id)
-        .eq('source_type', 'email')  // Changed from 'test' to 'email'
+        .eq('source_type', 'email')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
