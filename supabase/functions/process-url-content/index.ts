@@ -12,68 +12,86 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { url } = await req.json();
-    
-    if (!url) {
-      throw new Error('URL is required in request body');
+    const { ingestId } = await req.json();
+    console.log('[process-url-content] Processing ingest ID:', ingestId);
+
+    if (!ingestId) {
+      throw new Error('ingestId is required');
     }
 
-    console.log('Processing URL:', url);
-
-    // Initialize Supabase client
+    // Initialize Supabase client with service role key
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Extract post ID from Reddit URL
-    const postIdMatch = url.match(/comments\/([^/]+)/);
-    if (!postIdMatch) {
-      throw new Error('Invalid Reddit URL');
+    // Fetch the ingest record
+    const { data: ingest, error: fetchError } = await supabaseClient
+      .from('ingest_content_feb')
+      .select('*')
+      .eq('id', ingestId)
+      .single();
+
+    if (fetchError || !ingest) {
+      console.error('[process-url-content] Error fetching ingest:', fetchError);
+      throw new Error(fetchError?.message || 'Ingest not found');
     }
 
-    const postId = postIdMatch[1];
-    console.log('Extracted post ID:', postId);
+    if (!ingest.original_url) {
+      console.error('[process-url-content] No URL found in ingest');
+      throw new Error('No URL to process');
+    }
 
-    // Fetch Reddit post data
-    const response = await fetch(`https://www.reddit.com/comments/${postId}.json`);
+    console.log('[process-url-content] Fetching content from:', ingest.original_url);
+
+    // Simple GET request with minimal headers
+    const response = await fetch(ingest.original_url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': '*/*'
+      }
+    });
+
     if (!response.ok) {
-      throw new Error('Failed to fetch Reddit post');
+      console.error('[process-url-content] Fetch failed:', response.status, response.statusText);
+      throw new Error(`Failed to fetch URL: ${response.status}`);
     }
 
-    const data = await response.json();
-    const post = data[0]?.data?.children[0]?.data;
+    const content = await response.text();
+    console.log('[process-url-content] Fetched content length:', content.length);
+    console.log('[process-url-content] First 500 chars of content:', content.substring(0, 500));
 
-    if (!post) {
-      throw new Error('Post not found');
+    // Update the ingest record with the raw content
+    const { error: updateError } = await supabaseClient
+      .from('ingest_content_feb')
+      .update({
+        url_content: content,
+        processed: true,
+        error_message: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ingestId);
+
+    if (updateError) {
+      console.error('[process-url-content] Error updating ingest:', updateError);
+      throw updateError;
     }
 
-    console.log('Successfully fetched Reddit post data');
+    console.log('[process-url-content] Successfully processed URL for ingest:', ingestId);
 
     return new Response(
-      JSON.stringify({
-        post: {
-          title: post.title,
-          selftext: post.selftext,
-          author: post.author
-        }
-      }),
-      { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
+      JSON.stringify({ success: true }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('[process-url-content] Error:', error);
     
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
