@@ -1,12 +1,11 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -16,6 +15,11 @@ serve(async (req: Request) => {
     const { ingestId } = await req.json();
     console.log('[process-url-content] Processing ingest ID:', ingestId);
 
+    if (!ingestId) {
+      throw new Error('ingestId is required');
+    }
+
+    // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -29,10 +33,12 @@ serve(async (req: Request) => {
       .single();
 
     if (fetchError || !ingest) {
+      console.error('[process-url-content] Error fetching ingest:', fetchError);
       throw new Error(fetchError?.message || 'Ingest not found');
     }
 
     if (!ingest.original_url) {
+      console.error('[process-url-content] No URL found in ingest');
       throw new Error('No URL to process');
     }
 
@@ -42,15 +48,18 @@ serve(async (req: Request) => {
     const response = await fetch(ingest.original_url, {
       headers: {
         'User-Agent': 'Mozilla/5.0',
+        'Accept': '*/*'
       }
     });
 
     if (!response.ok) {
+      console.error('[process-url-content] Fetch failed:', response.status, response.statusText);
       throw new Error(`Failed to fetch URL: ${response.status}`);
     }
 
     const content = await response.text();
     console.log('[process-url-content] Fetched content length:', content.length);
+    console.log('[process-url-content] First 500 chars of content:', content.substring(0, 500));
 
     // Update the ingest record with the raw content
     const { error: updateError } = await supabaseClient
@@ -64,6 +73,7 @@ serve(async (req: Request) => {
       .eq('id', ingestId);
 
     if (updateError) {
+      console.error('[process-url-content] Error updating ingest:', updateError);
       throw updateError;
     }
 
