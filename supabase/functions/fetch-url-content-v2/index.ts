@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     // Fetch unprocessed records with URLs
     const { data: records, error: fetchError } = await supabaseAdmin
       .from('ingest_content_feb')
-      .select('id, original_url')
+      .select('id, original_url, processed')
       .eq('processed', false)
       .not('original_url', 'is', null)
       .limit(10); // Process in batches of 10
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       throw fetchError;
     }
 
-    console.log(`[fetch-url-content-v2] Found ${records?.length || 0} records to process`);
+    console.log(`[fetch-url-content-v2] Found ${records?.length || 0} records to process:`, records);
 
     if (!records?.length) {
       return new Response(
@@ -63,11 +63,14 @@ Deno.serve(async (req) => {
           }
 
           const content = await response.text();
+          console.log(`[fetch-url-content-v2] Successfully fetched content for ${record.original_url}, length: ${content.length}`);
           
           // Extract basic metadata using regex
           const title = content.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
           const author = content.match(/author"[^>]*content="([^"]+)"/i)?.[1]?.trim();
           const publishedAt = content.match(/published_time"[^>]*content="([^"]+)"/i)?.[1]?.trim();
+
+          console.log(`[fetch-url-content-v2] Extracted metadata:`, { title, author, publishedAt });
 
           // Update the record with the fetched content
           const { error: updateError } = await supabaseAdmin
@@ -84,8 +87,11 @@ Deno.serve(async (req) => {
             .eq('id', record.id);
 
           if (updateError) {
+            console.error(`[fetch-url-content-v2] Error updating record ${record.id}:`, updateError);
             throw updateError;
           }
+
+          console.log(`[fetch-url-content-v2] Successfully updated record ${record.id}`);
 
           return { 
             id: record.id, 
@@ -116,7 +122,7 @@ Deno.serve(async (req) => {
       })
     );
 
-    console.log('[fetch-url-content-v2] Batch processing completed');
+    console.log('[fetch-url-content-v2] Batch processing completed. Results:', results);
 
     return new Response(
       JSON.stringify({ success: true, results }),
