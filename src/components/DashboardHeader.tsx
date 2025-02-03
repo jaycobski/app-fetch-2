@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 interface DashboardHeaderProps {
   onSignOut: () => Promise<void>;
@@ -6,10 +7,19 @@ interface DashboardHeaderProps {
 
 const DashboardHeader = ({ onSignOut }: DashboardHeaderProps) => {
   return (
-    <div className="flex justify-between items-center mb-8">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      <Button variant="outline" onClick={onSignOut}>Sign Out</Button>
-    </div>
+    <header className="flex justify-between items-center">
+      <nav className="flex gap-4">
+        <Link to="/" className="text-lg font-semibold">
+          Dashboard
+        </Link>
+        <Link to="/embeds" className="text-lg">
+          Embeds
+        </Link>
+      </nav>
+      <Button variant="outline" onClick={onSignOut}>
+        Sign Out
+      </Button>
+    </header>
   );
 };
 
