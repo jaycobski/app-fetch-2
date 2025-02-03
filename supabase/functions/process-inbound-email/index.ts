@@ -50,7 +50,8 @@ serve(async (req) => {
         to: emailData.envelope.recipients,
         from: emailData.envelope.from,
         subject: emailData.headers.subject,
-        contentLength: emailData.html?.length || emailData.plain?.length
+        contentLength: emailData.html?.length || emailData.plain?.length,
+        htmlContent: emailData.html?.substring(0, 500) // Log first 500 chars of HTML
       });
     } catch (parseError) {
       console.error('Failed to parse email data:', parseError);
@@ -81,6 +82,11 @@ serve(async (req) => {
       emailAddress: userIngestEmail.email_address
     });
 
+    // Extract URLs from HTML content
+    const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+    const urls = emailData.html?.match(urlRegex) || [];
+    console.log('Extracted URLs:', urls);
+
     const metadata = {
       headers: {
         subject: String(emailData.headers.subject || ''),
@@ -93,7 +99,8 @@ serve(async (req) => {
         to: emailData.envelope.recipients.map(r => String(r)),
         heloDomain: String(emailData.envelope.helo_domain || ''),
         remoteIp: String(emailData.envelope.remote_ip || '')
-      }
+      },
+      extractedUrls: urls
     };
     console.log('Created metadata:', JSON.stringify(metadata, null, 2));
 
@@ -105,7 +112,7 @@ serve(async (req) => {
         source_type: 'email',
         content_title: emailData.headers.subject || 'Email Content',
         content_body: emailData.html || emailData.plain || '',
-        original_url: null,
+        original_url: urls[0] || null, // Use the first URL found
         original_author: emailData.envelope.from,
         metadata: metadata,
         source_created_at: new Date().toISOString(),
