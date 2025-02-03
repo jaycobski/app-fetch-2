@@ -5,6 +5,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const browserHeaders = {
+  'Accept': '*/*',
+  'Accept-Encoding': 'deflate, gzip',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+};
+
+interface OGTags {
+  title?: string;
+  description?: string;
+  image?: string;
+  author?: string;
+  publishedTime?: string;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -62,7 +76,7 @@ Deno.serve(async (req) => {
           user_id: userIngest.user_id,
           source_type: 'email',
           original_url: targetUrl,
-          processed: true
+          processed: false
         }
       ])
       .select()
@@ -75,12 +89,9 @@ Deno.serve(async (req) => {
 
     console.log('[process-url-content] Created ingest record:', ingest.id);
 
-    // Fetch content from URL
+    // Fetch content from URL with browser-like headers
     const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': '*/*'
-      }
+      headers: browserHeaders
     });
 
     if (!response.ok) {
@@ -90,11 +101,38 @@ Deno.serve(async (req) => {
     const content = await response.text();
     console.log('[process-url-content] Fetched content length:', content.length);
 
-    // Update the ingest record with the content
+    // Extract Open Graph tags
+    const ogTags: OGTags = {
+      title: content.match(/<meta property="og:title" content="([^"]+)"/)?.[1],
+      description: content.match(/<meta property="og:description" content="([^"]+)"/)?.[1],
+      image: content.match(/<meta property="og:image" content="([^"]+)"/)?.[1],
+      author: content.match(/<meta property="article:author" content="([^"]+)"/)?.[1],
+      publishedTime: content.match(/<meta property="article:published_time" content="([^"]+)"/)?.[1]
+    };
+
+    console.log('[process-url-content] Extracted OG tags:', ogTags);
+
+    // Extract JSON-LD data if available
+    let jsonLd = null;
+    const jsonLdMatch = content.match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
+    if (jsonLdMatch) {
+      try {
+        jsonLd = JSON.parse(jsonLdMatch[1]);
+        console.log('[process-url-content] Extracted JSON-LD data:', jsonLd);
+      } catch (e) {
+        console.error('[process-url-content] Error parsing JSON-LD:', e);
+      }
+    }
+
+    // Update the ingest record with the extracted content
     const { error: updateError } = await supabaseClient
       .from('ingest_content_feb')
       .update({
-        url_content: content,
+        url_title: ogTags.title,
+        url_content: ogTags.description,
+        url_author: ogTags.author,
+        url_published_at: ogTags.publishedTime,
+        platform_specific_data: jsonLd ? { jsonLd } : undefined,
         processed: true,
         updated_at: new Date().toISOString()
       })
