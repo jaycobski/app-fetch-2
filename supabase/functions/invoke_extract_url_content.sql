@@ -32,6 +32,6 @@ $$;
 
 -- Create the trigger
 CREATE TRIGGER trigger_extract_url_content
-  AFTER INSERT ON social_content_ingests
+  AFTER INSERT ON ingest_content_feb
   FOR EACH ROW
   EXECUTE FUNCTION invoke_extract_url_content();

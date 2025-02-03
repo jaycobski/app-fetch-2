@@ -100,7 +100,7 @@ serve(async (req: Request) => {
 
     // Fetch the ingest record
     const { data: ingest, error: fetchError } = await supabaseClient
-      .from('social_content_ingests')
+      .from('ingest_content_feb')
       .select('*')
       .eq('id', ingestId)
       .single();
@@ -109,27 +109,27 @@ serve(async (req: Request) => {
       throw new Error(fetchError?.message || 'Ingest not found');
     }
 
-    if (!ingest.extracted_url) {
+    if (!ingest.original_url) {
       throw new Error('No URL to process');
     }
 
     // Determine which extractor to use
     const platform = Object.keys(extractors).find(p => 
-      extractors[p].matchDomain(ingest.extracted_url)
+      extractors[p].matchDomain(ingest.original_url)
     );
     
     let extractedContent;
     if (platform) {
       console.log(`[extract-url-content] Using ${platform} extractor`);
-      extractedContent = await extractors[platform].extract(ingest.extracted_url);
+      extractedContent = await extractors[platform].extract(ingest.original_url);
     } else {
       console.log('[extract-url-content] Using generic extractor');
-      extractedContent = await genericExtractor(ingest.extracted_url);
+      extractedContent = await genericExtractor(ingest.original_url);
     }
 
     // Update the ingest record
     const { error: updateError } = await supabaseClient
-      .from('social_content_ingests')
+      .from('ingest_content_feb')
       .update({
         url_title: extractedContent.title,
         url_content: extractedContent.content,
@@ -160,7 +160,7 @@ serve(async (req: Request) => {
       );
       
       await supabaseClient
-        .from('social_content_ingests')
+        .from('ingest_content_feb')
         .update({
           processed: true,
           error_message: `Error extracting content: ${error.message}`
