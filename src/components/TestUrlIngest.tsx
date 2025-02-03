@@ -2,9 +2,38 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUrlIngest } from "@/hooks/useUrlIngest";
 import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const TestUrlIngest = () => {
   const { isLoading, createTestIngest } = useUrlIngest();
+
+  // Query to fetch the latest test ingest
+  const { data: latestIngest } = useQuery({
+    queryKey: ['latestTestIngest'],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return null;
+      
+      const { data, error } = await supabase
+        .from('ingest_content_feb')
+        .select('*')
+        .eq('user_id', session.session.user.id)
+        .eq('source_type', 'test')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching latest ingest:', error);
+        return null;
+      }
+      
+      console.log('Latest test ingest:', data);
+      return data;
+    },
+    refetchInterval: 2000, // Refetch every 2 seconds to see updates
+  });
 
   return (
     <Card>
@@ -29,6 +58,21 @@ const TestUrlIngest = () => {
             "Test URL Extraction"
           )}
         </Button>
+
+        {latestIngest && (
+          <div className="mt-4 space-y-2 text-sm">
+            <p><strong>Status:</strong> {latestIngest.processed ? 'Processed' : 'Processing...'}</p>
+            {latestIngest.error_message && (
+              <p className="text-destructive"><strong>Error:</strong> {latestIngest.error_message}</p>
+            )}
+            {latestIngest.original_url && (
+              <p><strong>Extracted URL:</strong> {latestIngest.original_url}</p>
+            )}
+            {latestIngest.url_content && (
+              <p><strong>Fetched Content:</strong> {latestIngest.url_content.substring(0, 100)}...</p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
