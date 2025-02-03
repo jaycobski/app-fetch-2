@@ -7,12 +7,18 @@ interface DashboardHeaderProps {
 
 const DashboardHeader = ({ onSignOut }: DashboardHeaderProps) => {
   return (
-    <header className="flex justify-between items-center">
-      <nav className="flex gap-4">
-        <Link to="/" className="text-lg font-semibold">
+    <header className="flex justify-between items-center mb-8">
+      <nav className="flex items-center gap-4">
+        <Link 
+          to="/" 
+          className="text-lg font-semibold hover:text-primary transition-colors"
+        >
           Dashboard
         </Link>
-        <Link to="/embeds" className="text-lg">
+        <Link 
+          to="/embeds" 
+          className="text-lg hover:text-primary transition-colors"
+        >
           Embeds
         </Link>
       </nav>
