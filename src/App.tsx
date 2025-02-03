@@ -5,6 +5,7 @@ import { queryClient } from "@/lib/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import AuthPage from "./pages/Auth";
 import Index from "./pages/Index";
+import EmbedsPage from "./pages/Embeds";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/" element={<Index />} />
+            <Route path="/embeds" element={<EmbedsPage />} />
           </Routes>
           <Toaster />
         </ThemeProvider>
