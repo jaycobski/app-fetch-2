@@ -46,54 +46,23 @@ serve(async (req: Request) => {
       throw new Error('No URL to process');
     }
 
-    console.log('[extract-linkedin-content] Fetching LinkedIn content from:', ingest.extracted_url);
+    console.log('[extract-linkedin-content] Processing LinkedIn URL:', ingest.extracted_url);
 
-    // Fetch the LinkedIn page
-    const response = await fetch(ingest.extracted_url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch LinkedIn content: ${response.status}`);
-    }
-
-    const html = await response.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-
-    if (!doc) {
-      throw new Error('Failed to parse HTML');
-    }
-
-    // Extract metadata using Open Graph tags
-    const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
-                 doc.querySelector('title')?.textContent || '';
-    const description = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') ||
-                       doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-    const author = doc.querySelector('meta[property="article:author"]')?.getAttribute('content') ||
-                  doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
-    const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
-
-    console.log('[extract-linkedin-content] Extracted content:', {
-      title,
-      description,
-      author,
-      publishedTime
-    });
-
-    // Update the ingest record with extracted content
+    // Update the record with basic information we can determine from the URL
+    const urlParts = ingest.extracted_url.split('/');
+    const authorUsername = urlParts[4] || 'unknown';
+    const postTitle = urlParts[5] || 'LinkedIn Post';
+    
+    // Since we can't access LinkedIn content directly, we'll store what we can
     const { error: updateError } = await supabaseClient
       .from('social_content_ingests')
       .update({
-        url_title: title,
-        url_content: description,
-        url_author: author,
-        url_published_at: publishedTime,
+        url_title: `LinkedIn post by ${authorUsername}`,
+        url_content: `This content is from LinkedIn and requires authentication to view. Original URL: ${ingest.extracted_url}`,
+        url_author: authorUsername,
         source_platform: 'linkedin',
         processed: true,
-        error_message: null,
+        error_message: 'LinkedIn content requires authentication to access',
         updated_at: new Date().toISOString()
       })
       .eq('id', ingestId);
