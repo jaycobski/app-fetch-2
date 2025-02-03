@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 
 interface RedditEmbedProps {
@@ -16,33 +16,38 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
   const [post, setPost] = useState<RedditPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
 
   useEffect(() => {
     // Load Reddit embed script
-    const script = document.createElement('script');
-    script.src = 'https://embed.reddit.com/widgets.js';
-    script.async = true;
-    script.charset = 'UTF-8';
-    document.body.appendChild(script);
+    const loadScript = () => {
+      // Remove existing script if it exists
+      if (scriptRef.current) {
+        scriptRef.current.remove();
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://embed.reddit.com/widgets.js';
+      script.async = true;
+      script.charset = 'UTF-8';
+      document.body.appendChild(script);
+      scriptRef.current = script;
+    };
 
     // Fetch post content
     const fetchPostContent = async () => {
       try {
-        const response = await fetch(
-          `https://umugzdepvpezfmnjowcn.supabase.co/functions/v1/process-url-content?url=${encodeURIComponent(postUrl)}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-            }
-          }
-        );
+        const { data, error } = await supabase.functions.invoke('process-url-content', {
+          body: { url: postUrl }
+        });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch post content');
+        if (error) {
+          throw error;
         }
 
-        const data = await response.json();
-        setPost(data.post);
+        if (data?.post) {
+          setPost(data.post);
+        }
       } catch (err) {
         console.error('Error fetching post:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch post content');
@@ -51,13 +56,14 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
       }
     };
 
+    loadScript();
     fetchPostContent();
 
     // Cleanup function
     return () => {
-      const existingScript = document.querySelector('script[src="https://embed.reddit.com/widgets.js"]');
-      if (existingScript && existingScript.parentNode) {
-        existingScript.parentNode.removeChild(existingScript);
+      if (scriptRef.current) {
+        scriptRef.current.remove();
+        scriptRef.current = null;
       }
     };
   }, [postUrl]);
