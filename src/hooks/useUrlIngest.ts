@@ -14,33 +14,47 @@ export const useUrlIngest = () => {
         return;
       }
 
-      const testContent = `<div dir="ltr"><a href="https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4">https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4</a></div>`;
-
-      const { data, error } = await supabase
-        .from('ingest_content_feb')  // Changed to match the query table
-        .insert([
-          {
-            user_id: session.session.user.id,
-            source_type: 'email',
-            content_body: testContent,
-            processed: false
-          }
-        ])
-        .select()
+      // Get the user's ingest email settings which contain the auth credentials
+      const { data: ingestSettings, error: settingsError } = await supabase
+        .from('user_ingest_emails')
+        .select('cloudmailin_username, cloudmailin_password')
+        .eq('user_id', session.session.user.id)
         .single();
 
-      if (error) {
-        console.error('Error creating test ingest:', error);
-        toast.error("Failed to create test ingest");
+      if (settingsError || !ingestSettings) {
+        console.error('Error fetching ingest settings:', settingsError);
+        toast.error("Failed to fetch ingest settings");
         return;
       }
 
-      console.log('Created test ingest:', data);
-      toast.success("Test ingest created successfully");
+      // Create basic auth header
+      const basicAuth = btoa(`${ingestSettings.cloudmailin_username}:${ingestSettings.cloudmailin_password}`);
+
+      // Test URL to ingest
+      const testUrl = "https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4";
+
+      // Make GET request with basic auth
+      const response = await fetch(
+        `https://umugzdepvpezfmnjowcn.supabase.co/functions/v1/process-url-content?url=${encodeURIComponent(testUrl)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${basicAuth}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('URL ingest response:', result);
+      toast.success("Test URL ingestion successful");
 
     } catch (error) {
       console.error('Error in test ingest:', error);
-      toast.error("Failed to create test ingest");
+      toast.error("Failed to test URL ingestion");
     } finally {
       setIsLoading(false);
     }
