@@ -17,11 +17,11 @@ export const useUrlIngest = () => {
       const testContent = `<div dir="ltr"><a href="https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4">https://www.linkedin.com/posts/vladgozman_apolloios-co-founder-ceo-tim-zheng-presented-activity-7291085102724313089-UQG4</a></div>`;
 
       const { data, error } = await supabase
-        .from('social_content_ingests')
+        .from('ingest_content_feb')  // Changed to match the query table
         .insert([
           {
             user_id: session.session.user.id,
-            source_type: 'email', // Changed from 'test' to 'email' as it's a valid source type
+            source_type: 'email',
             content_body: testContent,
             processed: false
           }
