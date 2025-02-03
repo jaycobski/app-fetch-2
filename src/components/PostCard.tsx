@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Loader2 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { FileText } from "lucide-react";
+import AIGenerationSection from "./post/AIGenerationSection";
+import PostMetadata from "./post/PostMetadata";
+import PostActions from "./post/PostActions";
 
 interface Summary {
   summary_content: string | null;
@@ -25,8 +27,6 @@ interface PostCardProps {
 
 const PostCard = ({ post, onGenerateAI }: PostCardProps) => {
   const summary = post.summaries?.[0];
-  const isGenerating = summary?.status === 'pending';
-  const hasError = summary?.error_message != null;
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -41,49 +41,14 @@ const PostCard = ({ post, onGenerateAI }: PostCardProps) => {
               {post.content}
             </p>
           )}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {post.author && <span>By: {post.author}</span>}
-            {post.subreddit && <span>r/{post.subreddit}</span>}
-          </div>
           
-          {/* AI Summary Section */}
-          <div className="min-h-[60px] rounded-md bg-accent/50 p-3">
-            {isGenerating ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Generating summary...</span>
-              </div>
-            ) : hasError ? (
-              <p className="text-sm text-red-500">
-                Error generating summary: {summary.error_message}
-              </p>
-            ) : summary?.summary_content ? (
-              <p className="text-sm text-muted-foreground">
-                {summary.summary_content}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                AI summary will appear here...
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <a
-              href={post.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-blue-500 hover:underline"
-            >
-              View Original
-            </a>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Generate AI Overview</span>
-              <Switch
-                onCheckedChange={(checked) => onGenerateAI(post.id, checked)}
-              />
-            </div>
-          </div>
+          <PostMetadata author={post.author} subreddit={post.subreddit} />
+          <AIGenerationSection summary={summary} />
+          <PostActions 
+            postId={post.id} 
+            url={post.url} 
+            onGenerateAI={onGenerateAI} 
+          />
         </div>
       </CardContent>
     </Card>

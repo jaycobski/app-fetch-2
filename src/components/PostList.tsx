@@ -1,4 +1,6 @@
 import PostCard from "./PostCard";
+import PostListEmptyState from "./post/PostListEmptyState";
+import PostListSkeleton from "./post/PostListSkeleton";
 
 interface Summary {
   summary_content: string | null;
@@ -19,15 +21,16 @@ interface Post {
 interface PostListProps {
   posts: Post[];
   onGenerateAI: (postId: string, enabled: boolean) => void;
+  isLoading?: boolean;
 }
 
-const PostList = ({ posts, onGenerateAI }: PostListProps) => {
+const PostList = ({ posts, onGenerateAI, isLoading }: PostListProps) => {
+  if (isLoading) {
+    return <PostListSkeleton />;
+  }
+
   if (posts.length === 0) {
-    return (
-      <div className="text-center text-muted-foreground py-12">
-        No posts found. Start by fetching some posts!
-      </div>
-    );
+    return <PostListEmptyState />;
   }
 
   return (
