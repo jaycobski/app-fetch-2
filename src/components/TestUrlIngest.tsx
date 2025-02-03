@@ -22,7 +22,7 @@ const TestUrlIngest = () => {
         .eq('source_type', 'test')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.error('Error fetching latest ingest:', error);
