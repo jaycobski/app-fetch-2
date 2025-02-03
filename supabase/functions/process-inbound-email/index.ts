@@ -23,46 +23,6 @@ interface CloudMailinEmail {
   attachments: any[];
 }
 
-// Helper function to create a safe metadata object
-const createSafeMetadata = (emailData: CloudMailinEmail) => {
-  try {
-    console.log('Creating safe metadata from email data:', {
-      subject: emailData.headers.subject,
-      from: emailData.envelope.from,
-      to: emailData.envelope.recipients
-    });
-    
-    const safeMetadata = {
-      headers: {
-        subject: String(emailData.headers.subject || ''),
-        contentType: String(emailData.headers['content-type'] || ''),
-        originalUrl: String(emailData.headers['x-original-url'] || ''),
-        from: String(emailData.headers.from || ''),
-        to: String(emailData.headers.to || '')
-      },
-      envelope: {
-        from: String(emailData.envelope.from || ''),
-        to: emailData.envelope.recipients.map(r => String(r)),
-        heloDomain: String(emailData.envelope.helo_domain || ''),
-        remoteIp: String(emailData.envelope.remote_ip || '')
-      }
-    };
-    
-    JSON.stringify(safeMetadata); // Test serialization
-    console.log('Successfully created safe metadata');
-    return safeMetadata;
-  } catch (error) {
-    console.error('Error creating safe metadata:', error);
-    return {
-      headers: {},
-      envelope: {
-        to: [],
-        from: ''
-      }
-    };
-  }
-};
-
 serve(async (req) => {
   console.log(`Received ${req.method} request to process-inbound-email`);
   console.log('Request headers:', req.headers);
@@ -141,10 +101,23 @@ serve(async (req) => {
     });
 
     // Create safe metadata object
-    const metadata = createSafeMetadata(emailData);
-    console.log('Safe metadata created:', metadata);
+    const metadata = {
+      headers: {
+        subject: String(emailData.headers.subject || ''),
+        contentType: String(emailData.headers['content-type'] || ''),
+        from: String(emailData.headers.from || ''),
+        to: String(emailData.headers.to || '')
+      },
+      envelope: {
+        from: String(emailData.envelope.from || ''),
+        to: emailData.envelope.recipients.map(r => String(r)),
+        heloDomain: String(emailData.envelope.helo_domain || ''),
+        remoteIp: String(emailData.envelope.remote_ip || '')
+      }
+    };
+    console.log('Created metadata:', metadata);
 
-    // Store in ingest_content_feb table instead of social_content_ingests
+    // Store in ingest_content_feb table
     const { data: ingest, error: ingestError } = await supabaseClient
       .from('ingest_content_feb')
       .insert({
@@ -152,10 +125,11 @@ serve(async (req) => {
         source_type: 'email',
         content_title: emailData.headers.subject || 'Email Content',
         content_body: emailData.html || emailData.plain || '',
-        original_url: emailData.headers['x-original-url'] || `mailto:${emailData.envelope.from}`,
+        original_url: null,
         original_author: emailData.envelope.from,
         metadata: metadata,
-        source_created_at: new Date().toISOString()
+        source_created_at: new Date().toISOString(),
+        processed: false
       })
       .select()
       .single();
