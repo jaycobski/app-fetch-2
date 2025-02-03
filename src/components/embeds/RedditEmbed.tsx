@@ -17,9 +17,9 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load Reddit embed script
     const loadScript = () => {
       // Remove existing script if it exists
       if (scriptRef.current) {
@@ -30,11 +30,14 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
       script.src = 'https://embed.reddit.com/widgets.js';
       script.async = true;
       script.charset = 'UTF-8';
-      document.body.appendChild(script);
-      scriptRef.current = script;
+      
+      // Only append if container exists
+      if (containerRef.current) {
+        containerRef.current.appendChild(script);
+        scriptRef.current = script;
+      }
     };
 
-    // Fetch post content
     const fetchPostContent = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('process-url-content', {
@@ -56,10 +59,9 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
       }
     };
 
-    loadScript();
     fetchPostContent();
+    loadScript();
 
-    // Cleanup function
     return () => {
       if (scriptRef.current) {
         scriptRef.current.remove();
@@ -69,7 +71,7 @@ const RedditEmbed = ({ postUrl, height = 410 }: RedditEmbedProps) => {
   }, [postUrl]);
 
   return (
-    <div className="space-y-4">
+    <div ref={containerRef} className="space-y-4">
       {loading && <p className="text-gray-500">Loading post content...</p>}
       {error && <p className="text-red-500">Error: {error}</p>}
       {post && (
