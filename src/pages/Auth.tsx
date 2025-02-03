@@ -9,9 +9,11 @@ import type { Session, AuthError } from "@supabase/supabase-js";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import SocialContentList from "@/components/SocialContentList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useNavigate } from "react-router-dom";
 
 const AuthPage = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState("");
   const [session, setSession] = useState<Session | null>(null);
 
@@ -167,11 +169,18 @@ const AuthPage = () => {
         <div className="text-center space-y-2">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold">Welcome Back</h1>
-            {session && (
-              <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-            )}
+            <div className="space-x-2">
+              {session && (
+                <>
+                  <Button variant="outline" onClick={() => navigate("/")}>
+                    Go to Dashboard
+                  </Button>
+                  <Button variant="outline" onClick={handleSignOut}>
+                    Sign Out
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
           <p className="text-muted-foreground">Sign in to your account to continue</p>
         </div>
