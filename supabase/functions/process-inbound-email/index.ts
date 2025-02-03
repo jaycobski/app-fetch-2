@@ -32,25 +32,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Only allow POST requests for email processing
-  if (req.method !== 'POST') {
-    console.error('Invalid request method:', req.method);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Method not allowed', 
-        message: 'This endpoint only accepts POST requests from CloudMailin' 
-      }),
-      { 
-        status: 405, 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-          'Allow': 'POST, OPTIONS'
-        } 
-      }
-    );
-  }
-
   try {
     console.log('Creating Supabase client...');
     const supabaseClient = createClient(
@@ -81,18 +62,12 @@ serve(async (req) => {
 
     if (userError) {
       console.error('Database error finding user:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Database error', details: userError }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw userError;
     }
 
     if (!userIngestEmail) {
       console.error('No user found for email:', toEmail);
-      return new Response(
-        JSON.stringify({ error: 'Invalid recipient email' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error('Invalid recipient email');
     }
 
     console.log('Found user for email:', {
@@ -100,7 +75,6 @@ serve(async (req) => {
       emailAddress: userIngestEmail.email_address
     });
 
-    // Create safe metadata object
     const metadata = {
       headers: {
         subject: String(emailData.headers.subject || ''),
@@ -117,7 +91,7 @@ serve(async (req) => {
     };
     console.log('Created metadata:', metadata);
 
-    // Store in ingest_content_feb table
+    console.log('Attempting to insert into ingest_content_feb...');
     const { data: ingest, error: ingestError } = await supabaseClient
       .from('ingest_content_feb')
       .insert({
@@ -136,24 +110,37 @@ serve(async (req) => {
 
     if (ingestError) {
       console.error('Error storing content:', ingestError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to store email content', details: ingestError }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw ingestError;
     }
 
     console.log('Successfully stored email content:', ingest);
 
     return new Response(
       JSON.stringify({ success: true, ingest }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 200, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     );
 
   } catch (error) {
     console.error('Error processing email:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: 'Internal server error', 
+        details: error.message,
+        stack: error.stack 
+      }),
+      { 
+        status: 500, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     );
   }
 });
