@@ -11,56 +11,6 @@ interface RequestBody {
   ingestId: string;
 }
 
-// Generic URL content extractor
-const extractUrlContent = async (url: string) => {
-  console.log('[URL Extractor] Starting extraction for URL:', url);
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error('[URL Extractor] Failed to fetch URL:', url, 'Status:', response.status);
-      throw new Error(`Failed to fetch URL: ${response.status}`);
-    }
-    
-    const html = await response.text();
-    console.log('[URL Extractor] Fetched HTML content. Length:', html.length);
-    
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    if (!doc) {
-      console.error('[URL Extractor] Failed to parse HTML');
-      throw new Error('Failed to parse HTML');
-    }
-    
-    // Extract metadata
-    const title = doc.querySelector('title')?.textContent || '';
-    const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
-    const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
-    const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
-    const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
-    
-    console.log('[URL Extractor] Extracted metadata:', {
-      title,
-      metaDescription,
-      ogTitle,
-      ogDescription,
-      author,
-      publishedTime
-    });
-    
-    return {
-      title: title || ogTitle || '',
-      content: metaDescription || ogDescription || '',
-      author,
-      publishedAt: publishedTime ? new Date(publishedTime) : null
-    };
-  } catch (error) {
-    console.error('[URL Extractor] Error:', error);
-    throw error;
-  }
-};
-
 serve(async (req: Request) => {
   console.log('[process-url-content] Function called with method:', req.method);
 
@@ -104,30 +54,75 @@ serve(async (req: Request) => {
       throw new Error('Ingest not found');
     }
 
-    console.log('[process-url-content] Found ingest record:', {
-      id: ingest.id,
-      url: ingest.original_url
-    });
-
     if (!ingest.original_url) {
       console.error('[process-url-content] No URL found in ingest');
       throw new Error('No URL found in ingest');
     }
 
-    // Extract content from URL
-    const extractedContent = await extractUrlContent(ingest.original_url);
-    console.log('[process-url-content] Content extracted:', extractedContent);
+    console.log('[process-url-content] Fetching content from URL:', ingest.original_url);
 
-    // Update the ingest record with extracted content
+    // Fetch the webpage content with custom headers to mimic a browser
+    const response = await fetch(ingest.original_url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      }
+    });
+
+    if (!response.ok) {
+      console.error('[process-url-content] Failed to fetch URL:', response.status, response.statusText);
+      throw new Error(`Failed to fetch URL: ${response.statusText}`);
+    }
+
+    const html = await response.text();
+    console.log('[process-url-content] Fetched HTML content. Length:', html.length);
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    if (!doc) {
+      console.error('[process-url-content] Failed to parse HTML');
+      throw new Error('Failed to parse HTML');
+    }
+
+    // Extract metadata using Open Graph tags and fallback to regular meta tags
+    const title = 
+      doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+      doc.querySelector('title')?.textContent ||
+      '';
+      
+    const content = 
+      doc.querySelector('meta[property="og:description"]')?.getAttribute('content') ||
+      doc.querySelector('meta[name="description"]')?.getAttribute('content') ||
+      doc.querySelector('article')?.textContent?.trim() ||
+      '';
+      
+    const author = 
+      doc.querySelector('meta[property="article:author"]')?.getAttribute('content') ||
+      doc.querySelector('meta[name="author"]')?.getAttribute('content') ||
+      '';
+      
+    const publishedTime = 
+      doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
+
+    console.log('[process-url-content] Extracted content:', {
+      title,
+      contentLength: content.length,
+      author,
+      publishedTime
+    });
+
+    // Update the ingest record with the extracted content
     const { error: updateError } = await supabaseClient
       .from('ingest_content_feb')
       .update({
-        content_title: extractedContent.title,
-        content_body: extractedContent.content,
-        original_author: extractedContent.author,
-        source_created_at: extractedContent.publishedAt,
+        url_title: title,
+        url_content: content,
+        url_author: author,
+        url_published_at: publishedTime,
         processed: true,
-        error_message: null
+        error_message: null,
+        updated_at: new Date().toISOString()
       })
       .eq('id', ingestId);
 
@@ -157,7 +152,8 @@ serve(async (req: Request) => {
         .from('ingest_content_feb')
         .update({
           processed: true,
-          error_message: `Error processing URL: ${error.message}`
+          error_message: `Error processing URL: ${error.message}`,
+          updated_at: new Date().toISOString()
         })
         .eq('id', body.ingestId);
     } catch (updateError) {
