@@ -24,10 +24,10 @@ interface CloudMailinEmail {
 }
 
 serve(async (req) => {
+  console.log('=== START OF REQUEST PROCESSING ===');
   console.log(`Received ${req.method} request to process-inbound-email`);
-  console.log('Request headers:', req.headers);
+  console.log('Request headers:', JSON.stringify(req.headers, null, 2));
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -43,13 +43,19 @@ serve(async (req) => {
     const rawBody = await req.text();
     console.log('Raw request body:', rawBody);
     
-    const emailData: CloudMailinEmail = JSON.parse(rawBody);
-    console.log('Parsed email data:', {
-      to: emailData.envelope.recipients,
-      from: emailData.envelope.from,
-      subject: emailData.headers.subject,
-      contentLength: emailData.html?.length || emailData.plain?.length
-    });
+    let emailData: CloudMailinEmail;
+    try {
+      emailData = JSON.parse(rawBody);
+      console.log('Successfully parsed email data:', {
+        to: emailData.envelope.recipients,
+        from: emailData.envelope.from,
+        subject: emailData.headers.subject,
+        contentLength: emailData.html?.length || emailData.plain?.length
+      });
+    } catch (parseError) {
+      console.error('Failed to parse email data:', parseError);
+      throw new Error(`Invalid email data: ${parseError.message}`);
+    }
 
     const toEmail = emailData.envelope.recipients[0].toLowerCase().trim();
     console.log('Looking up recipient email:', toEmail);
@@ -67,7 +73,7 @@ serve(async (req) => {
 
     if (!userIngestEmail) {
       console.error('No user found for email:', toEmail);
-      throw new Error('Invalid recipient email');
+      throw new Error(`Invalid recipient email: ${toEmail}`);
     }
 
     console.log('Found user for email:', {
@@ -89,9 +95,9 @@ serve(async (req) => {
         remoteIp: String(emailData.envelope.remote_ip || '')
       }
     };
-    console.log('Created metadata:', metadata);
+    console.log('Created metadata:', JSON.stringify(metadata, null, 2));
 
-    console.log('Attempting to insert into ingest_content_feb...');
+    console.log('Attempting database insert...');
     const { data: ingest, error: ingestError } = await supabaseClient
       .from('ingest_content_feb')
       .insert({
@@ -113,7 +119,8 @@ serve(async (req) => {
       throw ingestError;
     }
 
-    console.log('Successfully stored email content:', ingest);
+    console.log('Successfully stored email content:', JSON.stringify(ingest, null, 2));
+    console.log('=== END OF REQUEST PROCESSING ===');
 
     return new Response(
       JSON.stringify({ success: true, ingest }),
@@ -127,7 +134,13 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error processing email:', error);
+    console.error('=== ERROR IN REQUEST PROCESSING ===');
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
+    
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
