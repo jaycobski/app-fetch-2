@@ -1,175 +1,109 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface RequestBody {
-  ingestId: string;
+interface WebPage {
+  title?: string;
+  content?: string;
+  author?: string;
+  publishedAt?: string;
 }
 
-// Function to extract content from a URL
-const extractUrlContent = async (url: string) => {
-  console.log('[URL Content Extractor] Starting extraction for URL:', url);
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error('[URL Content Extractor] Failed to fetch URL:', url, 'Status:', response.status);
-      throw new Error(`Failed to fetch URL: ${response.status}`);
-    }
-    
-    const html = await response.text();
-    console.log('[URL Content Extractor] Fetched HTML content. Length:', html.length);
-    
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    if (!doc) {
-      console.error('[URL Content Extractor] Failed to parse HTML');
-      throw new Error('Failed to parse HTML');
-    }
-    
-    // Extract metadata
-    const title = doc.querySelector('title')?.textContent || '';
-    const metaDescription = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
-    const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
-    const author = doc.querySelector('meta[name="author"]')?.getAttribute('content') || '';
-    const publishedTime = doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
-    
-    console.log('[URL Content Extractor] Extracted metadata:', {
-      title,
-      metaDescription,
-      ogTitle,
-      ogDescription,
-      author,
-      publishedTime
-    });
-    
-    return {
-      title: ogTitle || title,
-      content: ogDescription || metaDescription,
-      author,
-      publishedAt: publishedTime ? new Date(publishedTime) : null
-    };
-  } catch (error) {
-    console.error('[URL Content Extractor] Error:', error);
-    throw error;
-  }
-};
-
-serve(async (req: Request) => {
-  console.log('[extract-url-content] Function called with method:', req.method);
-
-  // Handle CORS
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const body = await req.json();
-    console.log('[extract-url-content] Request body:', body);
+    const { ingestId } = await req.json()
     
-    const { ingestId } = body as RequestBody;
     if (!ingestId) {
-      console.error('[extract-url-content] No ingestId provided in request body');
-      throw new Error('No ingestId provided');
+      throw new Error('ingestId is required')
     }
-    
-    console.log('[extract-url-content] Processing ingest ID:', ingestId);
 
+    // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-    console.log('[extract-url-content] Supabase client created');
+    )
 
     // Fetch the ingest record
     const { data: ingest, error: fetchError } = await supabaseClient
       .from('ingest_content_feb')
       .select('*')
       .eq('id', ingestId)
-      .single();
+      .single()
 
-    if (fetchError) {
-      console.error('[extract-url-content] Error fetching ingest:', fetchError);
-      throw new Error(`Ingest not found: ${fetchError.message}`);
-    }
-
-    if (!ingest) {
-      console.error('[extract-url-content] No ingest found with ID:', ingestId);
-      throw new Error('Ingest not found');
+    if (fetchError || !ingest) {
+      throw new Error(fetchError?.message || 'Ingest not found')
     }
 
     if (!ingest.original_url) {
-      console.error('[extract-url-content] No URL found in ingest');
-      throw new Error('No URL found in ingest');
+      throw new Error('No URL found in ingest')
     }
 
-    console.log('[extract-url-content] Found ingest record:', {
-      id: ingest.id,
-      url: ingest.original_url
-    });
+    console.log(`Fetching content from URL: ${ingest.original_url}`)
 
-    // Extract content from URL
-    const extractedContent = await extractUrlContent(ingest.original_url);
-    console.log('[extract-url-content] Content extracted:', extractedContent);
+    // Fetch the webpage content
+    const response = await fetch(ingest.original_url)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch URL: ${response.statusText}`)
+    }
 
-    // Update the ingest record with extracted content
+    const html = await response.text()
+
+    // Extract content using basic parsing
+    const webpage: WebPage = {
+      title: html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim(),
+      content: html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1]
+        ?.replace(/<[^>]+>/g, ' ')
+        ?.replace(/\s+/g, ' ')
+        ?.trim()
+        ?.substring(0, 5000), // Limit content length
+      author: html.match(/author"[^>]*content="([^"]+)"/i)?.[1]?.trim(),
+      publishedAt: html.match(/published_time"[^>]*content="([^"]+)"/i)?.[1]?.trim(),
+    }
+
+    console.log('Extracted webpage content:', webpage)
+
+    // Update the ingest record with the extracted content
     const { error: updateError } = await supabaseClient
       .from('ingest_content_feb')
       .update({
-        url_title: extractedContent.title,
-        url_content: extractedContent.content,
-        url_author: extractedContent.author,
-        url_published_at: extractedContent.publishedAt,
+        url_title: webpage.title,
+        url_content: webpage.content,
+        url_author: webpage.author,
+        url_published_at: webpage.publishedAt,
         processed: true,
-        error_message: null
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', ingestId);
+      .eq('id', ingestId)
 
     if (updateError) {
-      console.error('[extract-url-content] Error updating ingest:', updateError);
-      throw updateError;
+      throw new Error(`Failed to update ingest: ${updateError.message}`)
     }
-
-    console.log('[extract-url-content] Successfully processed URL for ingest:', ingestId);
 
     return new Response(
       JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
 
   } catch (error) {
-    console.error('[extract-url-content] Error in function:', error);
-    
-    // Try to update the ingest record with the error
-    try {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-      
-      await supabaseClient
-        .from('ingest_content_feb')
-        .update({
-          processed: true,
-          error_message: `Error processing URL: ${error.message}`
-        })
-        .eq('id', (body as RequestBody).ingestId);
-    } catch (updateError) {
-      console.error('[extract-url-content] Error updating ingest with error state:', updateError);
-    }
+    console.error('Error:', error)
     
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
       }
-    );
+    )
   }
-});
+})
