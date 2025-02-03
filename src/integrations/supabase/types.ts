@@ -107,6 +107,10 @@ export type Database = {
           platform_specific_data: Json | null
           post_url: string | null
           processed: boolean | null
+          social_media_author: string | null
+          social_media_content: string | null
+          social_media_published_at: string | null
+          social_media_type: string | null
           source_created_at: string | null
           source_platform: string | null
           source_type: string
@@ -131,6 +135,10 @@ export type Database = {
           platform_specific_data?: Json | null
           post_url?: string | null
           processed?: boolean | null
+          social_media_author?: string | null
+          social_media_content?: string | null
+          social_media_published_at?: string | null
+          social_media_type?: string | null
           source_created_at?: string | null
           source_platform?: string | null
           source_type: string
@@ -155,6 +163,10 @@ export type Database = {
           platform_specific_data?: Json | null
           post_url?: string | null
           processed?: boolean | null
+          social_media_author?: string | null
+          social_media_content?: string | null
+          social_media_published_at?: string | null
+          social_media_type?: string | null
           source_created_at?: string | null
           source_platform?: string | null
           source_type?: string
