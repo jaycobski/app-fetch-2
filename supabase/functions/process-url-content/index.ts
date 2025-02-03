@@ -12,6 +12,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      console.error('[process-url-content] No authorization header');
+      throw new Error('No authorization header');
+    }
+
     const { ingestId } = await req.json();
     console.log('[process-url-content] Processing ingest ID:', ingestId);
 
@@ -19,7 +26,7 @@ Deno.serve(async (req) => {
       throw new Error('ingestId is required');
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase client with service role key
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -90,7 +97,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        status: 500,
+        status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
