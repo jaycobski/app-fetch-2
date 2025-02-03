@@ -16,10 +16,10 @@ const TestUrlIngest = () => {
       if (!session?.session?.user) return null;
       
       const { data, error } = await supabase
-        .from('ingest_content_feb')
+        .from('social_content_ingests')
         .select('*')
         .eq('user_id', session.session.user.id)
-        .eq('source_type', 'test')
+        .eq('source_type', 'email')  // Changed from 'test' to 'email'
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
