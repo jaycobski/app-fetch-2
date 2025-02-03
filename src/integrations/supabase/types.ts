@@ -98,7 +98,7 @@ export type Database = {
           content_title: string | null
           created_at: string | null
           error_message: string | null
-          extracted_url_from_email: string | null
+          extracted_post_url: string | null
           id: string
           metadata: Json | null
           original_author: string | null
@@ -122,7 +122,7 @@ export type Database = {
           content_title?: string | null
           created_at?: string | null
           error_message?: string | null
-          extracted_url_from_email?: string | null
+          extracted_post_url?: string | null
           id?: string
           metadata?: Json | null
           original_author?: string | null
@@ -146,7 +146,7 @@ export type Database = {
           content_title?: string | null
           created_at?: string | null
           error_message?: string | null
-          extracted_url_from_email?: string | null
+          extracted_post_url?: string | null
           id?: string
           metadata?: Json | null
           original_author?: string | null
